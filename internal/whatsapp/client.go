@@ -47,16 +47,27 @@ type Bot struct {
 	readyOnce   sync.Once
 }
 
-// NewBot initializes a new WhatsApp Bot with SQLite session store.
+// NewBot initializes a new WhatsApp Bot with persistent session store (Turso Cloud or SQLite).
 func NewBot(cfg *config.Config, storage *storage.Storage, reg *phonebook.Registry) (*Bot, error) {
 	dbLog := waLog.Stdout("Database", cfg.LogLevel, true)
 	clientLog := waLog.Stdout("WhatsApp", cfg.LogLevel, true)
 
-	// Open whatsmeow SQL container using modernc sqlite driver
-	dbDSN := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", cfg.DBPath)
-	container, err := sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize whatsmeow sqlstore: %w", err)
+	var container *sqlstore.Container
+	var err error
+
+	if storage != nil && storage.IsTurso() {
+		container = sqlstore.NewWithDB(storage.DB(), "sqlite", dbLog)
+		if err := container.Upgrade(context.Background()); err != nil {
+			return nil, fmt.Errorf("failed to upgrade whatsmeow Turso sqlstore: %w", err)
+		}
+		log.Println("[WhatsApp] Using persistent Turso Cloud for WhatsApp session! ☁️")
+	} else {
+		dbDSN := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", cfg.DBPath)
+		container, err = sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize whatsmeow sqlstore: %w", err)
+		}
+		log.Printf("[WhatsApp] Using local SQLite session at: %s", cfg.DBPath)
 	}
 
 	deviceStore, err := container.GetFirstDevice(context.Background())

@@ -140,6 +140,11 @@ func (s *Storage) IsTurso() bool {
 	return s.isTurso
 }
 
+// DB returns the underlying *sql.DB instance.
+func (s *Storage) DB() *sql.DB {
+	return s.db
+}
+
 // --- Bot State Operations ---
 
 // GetState retrieves a key value from bot_state.
