@@ -96,10 +96,12 @@ Tambahkan variabel berikut di dashboard Render:
 * `TARGET_JID` = `120363431135211849@g.us`
 * `CITY_ID` = `1014`
 * `ENABLE_JUMAT_REMINDER` = `false`
-* `MEMBERS_JSON` =
-```json
-[{"display_name":"Fajar","phone":"6285768971813","aliases":["fajar","fajar aji pangestu"]},{"display_name":"Iskandar","phone":"6285758426987","aliases":["iskandar"]},{"display_name":"Ananda","phone":"6285180530165","aliases":["ananda","nanda","ananda kusuma"]},{"display_name":"Arif","phone":"6283181878854","aliases":["arif","arif hidayat"]},{"display_name":"Arjuna","phone":"6285268988283","aliases":["arjuna","juna","arjuna yulizar mahendra"]},{"display_name":"Basit","phone":"6285766840697","aliases":["basit","abdul basit","basit diwa fakara"]},{"display_name":"Imam","phone":"6288274018823","aliases":["imam","imam rifai"]},{"display_name":"Haris","phone":"6282367759870","aliases":["haris","dhiki","diki","dhiki harisno"]},{"display_name":"Thoriq","phone":"6285664249480","aliases":["thoriq","torik","t","torik lianda"]},{"display_name":"Ruzi","phones":["6282298399181","6285711024192"],"aliases":["ruzi","ruzi yandi"]},{"display_name":"Makhasin","phone":"6285758970652","aliases":["makhasin","khasin"]}]
-```
+* `TIMEZONE` = `Asia/Jakarta`
+* `LOG_LEVEL` = `INFO`
+* `TURSO_DATABASE_URL` = `libsql://prayer-reminder-wa-bot-mascinn.aws-ap-northeast-1.turso.io`
+* `TURSO_AUTH_TOKEN` = `eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...`
+
+*(Data anggota, nomor HP, dan jadwal mingguan otomatis dibaca langsung dari database Turso Cloud tanpa perlu memasukkan JSON secara manual).*
 
 ### 3. Deploy & Scan WhatsApp
 1. Klik **Create Web Service**.
