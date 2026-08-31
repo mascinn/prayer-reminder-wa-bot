@@ -248,6 +248,12 @@ func GetKultumSpeaker(index int) string {
 	return GetActiveSchedule().GetKultumSpeaker(index)
 }
 
+// GetKultumSpeakerForDay returns the speaker name assigned for a specific calendar day (1-31).
+// Day 1 maps to index 0, rolling over the queue and resetting every 1st of the month.
+func GetKultumSpeakerForDay(day int) string {
+	return GetActiveSchedule().GetKultumSpeakerForDay(day)
+}
+
 // NextKultumIndex returns the next round-robin index.
 func NextKultumIndex(currentIndex int) int {
 	return GetActiveSchedule().NextKultumIndex(currentIndex)
@@ -280,6 +286,16 @@ func (sc *ScheduleConfig) GetKultumSpeaker(index int) string {
 	return sc.KultumQueue[modIdx]
 }
 
+func (sc *ScheduleConfig) GetKultumSpeakerForDay(day int) string {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	if len(sc.KultumQueue) == 0 || day < 1 {
+		return ""
+	}
+	modIdx := (day - 1) % len(sc.KultumQueue)
+	return sc.KultumQueue[modIdx]
+}
+
 func (sc *ScheduleConfig) NextKultumIndex(currentIndex int) int {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
@@ -301,6 +317,21 @@ func (sc *ScheduleConfig) GetKultumQueue() []string {
 	res := make([]string, len(sc.KultumQueue))
 	copy(res, sc.KultumQueue)
 	return res
+}
+
+// DaysInMonth returns the total number of days in the month of the given time.
+func DaysInMonth(t time.Time) int {
+	year, month, _ := t.Date()
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, t.Location()).Day()
+}
+
+// FormatIndonesianMonthYear returns formatted month and year e.g. "September 2026".
+func FormatIndonesianMonthYear(t time.Time) string {
+	monthNames := []string{
+		"", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+		"Juli", "Agustus", "September", "Oktober", "November", "Desember",
+	}
+	return fmt.Sprintf("%s %04d", monthNames[t.Month()], t.Year())
 }
 
 // FormatIndonesianDate returns formatted Indonesian date string e.g. "Senin, 31 Agustus 2026".

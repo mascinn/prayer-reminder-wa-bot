@@ -248,13 +248,8 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 	tomorrowSchedule := matrix.GetDaySchedule(tomorrowWeekday)
 	subuhDuty := tomorrowSchedule.Subuh
 
-	// Atomically get and advance Kultum speaker index
-	usedIdx, err := s.storage.AdvanceKultumIndex(matrix.KultumQueueLen())
-	if err != nil {
-		log.Printf("[Scheduler] Error advancing kultum index: %v, using default index 0", err)
-		usedIdx = 0
-	}
-	speaker := matrix.GetKultumSpeaker(usedIdx)
+	// Kultum speaker is calculated from calendar day of tomorrow (Day 1 resets to Iskandar)
+	speaker := matrix.GetKultumSpeakerForDay(tomorrow.Day())
 
 	// Fetch tomorrow's Subuh time from API (or fallback)
 	var subuhTimeStr string
@@ -277,7 +272,7 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 		log.Printf("[Scheduler] Failed to send Subuh/Kultum reminder: %v", err)
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully to %s. Speaker: %s (Queue Index: %d)", targetJID, speaker, usedIdx)
+		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully to %s. Speaker: %s (Day: %d)", targetJID, speaker, tomorrow.Day())
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, "SUCCESS")
 	}
 }
@@ -401,8 +396,7 @@ func (s *Scheduler) registerCommands() {
 		}
 
 		daySchedule := matrix.GetDaySchedule(now.Weekday())
-		kIdx, _ := s.storage.GetKultumIndex()
-		speaker := matrix.GetKultumSpeaker(kIdx)
+		speaker := matrix.GetKultumSpeakerForDay(now.Day())
 
 		msg := templates.BuildJadwalPreview(s.phonebook, now, rawTimes, daySchedule, speaker)
 		return "", &msg, nil
@@ -410,63 +404,15 @@ func (s *Scheduler) registerCommands() {
 
 	// !kultum
 	s.bot.RegisterCommand("kultum", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
-		currentIdx, _ := s.storage.GetKultumIndex()
-		var sb strings.Builder
-		sb.WriteString("🎙️ *ROTASI KULTUM SUBUH (ROUND-ROBIN)*\n")
-		sb.WriteString("Masjid Al-Wasii - UNILA\n────────────────────────\n")
-		for i, name := range matrix.KultumQueue() {
-			marker := "  "
-			if i == currentIdx {
-				marker = "👉 "
-			}
-			tag := s.phonebook.FormatMention(name)
-			sb.WriteString(fmt.Sprintf("%s%d. %s (%s)\n", marker, i+1, tag, name))
-		}
-		sb.WriteString("────────────────────────\n")
-		sb.WriteString(fmt.Sprintf("_Petugas kultum berikutnya: *%s*_\n", matrix.GetKultumSpeaker(currentIdx)))
-		return sb.String(), nil, nil
-	})
-
-	// !setkultum [1-10 / nama]
-	s.bot.RegisterCommand("setkultum", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
-		if len(args) == 0 {
-			return "ℹ️ *Penggunaan:* `!setkultum [1-10 / nama]`\nContoh: `!setkultum 1` atau `!setkultum iskandar`", nil, nil
-		}
-
-		arg := strings.ToLower(args[0])
-		targetIdx := -1
-
-		// Check if it's a number 1-10
-		for i, name := range matrix.KultumQueue() {
-			numStr := fmt.Sprintf("%d", i+1)
-			if arg == numStr || strings.ToLower(name) == arg {
-				targetIdx = i
-				break
-			}
-			// Check aliases in phonebook
-			if m, ok := s.phonebook.Find(arg); ok && strings.EqualFold(m.DisplayName, name) {
-				targetIdx = i
-				break
-			}
-		}
-
-		if targetIdx == -1 {
-			return fmt.Sprintf("⚠️ Nama/nomor antrean %q tidak ditemukan di daftar kultum.", args[0]), nil, nil
-		}
-
-		if err := s.storage.SetKultumIndex(targetIdx); err != nil {
-			return fmt.Sprintf("⚠️ Gagal mengubah antrean kultum: %v", err), nil, nil
-		}
-
-		speaker := matrix.GetKultumSpeaker(targetIdx)
-		tag := s.phonebook.FormatMention(speaker)
-		return fmt.Sprintf("✅ *Antrean Kultum Berhasil Diubah!*\n👉 Giliran berikutnya: *%d. %s* (%s)\n_Akan bertugas pada jadwal Subuh berikutnya._", targetIdx+1, tag, speaker), nil, nil
+		now := time.Now().In(s.cfg.Location)
+		msg := templates.BuildKultumMonthlyScheduleView(s.phonebook, now)
+		return "", &msg, nil
 	})
 
 	// !test [prayer_name]
 	s.bot.RegisterCommand("test", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
 		if len(args) == 0 {
-			return "ℹ️ *Penggunaan:* `!test [subuh|zhuhur|ashar|maghrib|isya|jumat]`", nil, nil
+			return "ℹ️ *Penggunaan:* `!test [subuh|zhuhur|ashar|maghrib|isya|jumat|kantin]`", nil, nil
 		}
 
 		now := time.Now().In(s.cfg.Location)
@@ -476,8 +422,7 @@ func (s *Scheduler) registerCommands() {
 		case "subuh":
 			tomorrow := now.AddDate(0, 0, 1)
 			sched := matrix.GetDaySchedule(tomorrow.Weekday())
-			kIdx, _ := s.storage.GetKultumIndex()
-			speaker := matrix.GetKultumSpeaker(kIdx)
+			speaker := matrix.GetKultumSpeakerForDay(tomorrow.Day())
 
 			subuhTime := "04:44"
 			if parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, tomorrow); err == nil && parsed != nil {

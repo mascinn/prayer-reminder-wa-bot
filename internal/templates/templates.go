@@ -289,6 +289,45 @@ _Pengingat otomatis dikirim setiap Senin s.d. Jumat pukul 15:00 WIB._`,
 	}
 }
 
+// BuildKultumMonthlyScheduleView formats the calendar schedule of kultum speakers for the current month.
+func BuildKultumMonthlyScheduleView(reg *phonebook.Registry, now time.Time) ReminderMessage {
+	var jids []string
+
+	daysInMonth := matrix.DaysInMonth(now)
+	todayDay := now.Day()
+	tomorrow := now.AddDate(0, 0, 1)
+	speakerTomorrow := matrix.GetKultumSpeakerForDay(tomorrow.Day())
+
+	var lines []string
+	for day := 1; day <= daysInMonth; day++ {
+		speaker := matrix.GetKultumSpeakerForDay(day)
+		if day == todayDay {
+			lines = append(lines, fmt.Sprintf("👉 %d. %s (Hari Ini)", day, speaker))
+		} else {
+			lines = append(lines, fmt.Sprintf("   %d. %s", day, speaker))
+		}
+	}
+
+	tagTomorrow := formatOfficerTag(reg, speakerTomorrow, &jids)
+
+	msg := fmt.Sprintf(`🎙️ *JADWAL KULTUM SUBUH*
+Masjid Al-Wasii - UNILA
+Periode: %s
+────────────────────────
+%s
+────────────────────────
+_Petugas kultum berikutnya (Besok):_ %s`,
+		matrix.FormatIndonesianMonthYear(now),
+		strings.Join(lines, "\n"),
+		tagTomorrow,
+	)
+
+	return ReminderMessage{
+		Text:         msg,
+		MentionedJID: uniqueJIDs(jids),
+	}
+}
+
 // formatOfficerTag returns `@628xxx (DisplayName)` (or `@628xxx @628yyy (DisplayName)`) if found in phonebook, or just `@Name`
 func formatOfficerTag(reg *phonebook.Registry, name string, jids *[]string) string {
 	if name == "" {
