@@ -1,0 +1,11 @@
+.git
+.gitignore
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+README.md
+Dockerfile
+fly.toml

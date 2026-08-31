@@ -1,0 +1,386 @@
+package scheduler
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/robfig/cron/v3"
+	"go.mau.fi/whatsmeow/types"
+
+	"remind-bot/internal/api"
+	"remind-bot/internal/config"
+	"remind-bot/internal/matrix"
+	"remind-bot/internal/phonebook"
+	"remind-bot/internal/storage"
+	"remind-bot/internal/templates"
+	"remind-bot/internal/whatsapp"
+)
+
+// Scheduler coordinates cron jobs, daily API fetches, and in-memory prayer timers.
+type Scheduler struct {
+	cfg       *config.Config
+	storage   *storage.Storage
+	phonebook *phonebook.Registry
+	apiClient *api.Client
+	bot       *whatsapp.Bot
+
+	cronEngine *cron.Cron
+	timers     []*time.Timer
+	timersMu   sync.Mutex
+
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// NewScheduler creates and configures the scheduler with all cron triggers and commands.
+func NewScheduler(
+	cfg *config.Config,
+	storage *storage.Storage,
+	reg *phonebook.Registry,
+	bot *whatsapp.Bot,
+) *Scheduler {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Initialize cron with timezone location
+	cronEngine := cron.New(cron.WithLocation(cfg.Location), cron.WithSeconds())
+
+	s := &Scheduler{
+		cfg:        cfg,
+		storage:    storage,
+		phonebook:  reg,
+		apiClient:  api.NewClient(cfg.CityID),
+		bot:        bot,
+		cronEngine: cronEngine,
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+
+	s.registerCommands()
+	return s
+}
+
+// Start registers all recurring cron triggers and arms today's prayer schedule immediately.
+func (s *Scheduler) Start() error {
+	log.Printf("[Scheduler] Starting scheduler in timezone %s...", s.cfg.Location.String())
+
+	// 1. Daily API Fetch at 00:01:00 WIB
+	_, err := s.cronEngine.AddFunc("0 1 0 * * *", func() {
+		log.Println("[Scheduler] Cron triggered: Daily prayer schedule fetch at 00:01 WIB")
+		s.RunDailyFetch()
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule daily fetch cron: %w", err)
+	}
+
+	// 2. Subuh & Kultum Reminder at 20:30:00 WIB every night
+	_, err = s.cronEngine.AddFunc("0 30 20 * * *", func() {
+		log.Println("[Scheduler] Cron triggered: Subuh & Kultum reminder at 20:30 WIB")
+		s.RunSubuhKultumReminder()
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule subuh kultum cron: %w", err)
+	}
+
+	// 3. Friday Prayer Reminder at 21:00:00 WIB every Thursday (Day 4)
+	_, err = s.cronEngine.AddFunc("0 0 21 * * 4", func() {
+		log.Println("[Scheduler] Cron triggered: Friday reminder check at 21:00 WIB (Thursday)")
+		s.RunFridayReminder()
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule Friday reminder cron: %w", err)
+	}
+
+	s.cronEngine.Start()
+
+	// Perform initial fetch and arm today's remaining prayers on startup
+	go s.RunDailyFetch()
+
+	return nil
+}
+
+// Stop terminates all active timers and cron jobs.
+func (s *Scheduler) Stop() {
+	s.cancel()
+	s.cronEngine.Stop()
+
+	s.timersMu.Lock()
+	for _, t := range s.timers {
+		t.Stop()
+	}
+	s.timers = nil
+	s.timersMu.Unlock()
+
+	log.Println("[Scheduler] Stopped all cron jobs and active timers.")
+}
+
+// RunDailyFetch fetches today's prayer times from the API and arms timers for Zhuhur, Ashar, Maghrib, Isya.
+func (s *Scheduler) RunDailyFetch() {
+	now := time.Now().In(s.cfg.Location)
+	log.Printf("[Scheduler] Fetching prayer times for %s...", matrix.FormatIndonesianDate(now))
+
+	parsedTimes, rawJSON, err := s.apiClient.FetchJadwal(s.cfg.Location, now)
+	if err != nil {
+		log.Printf("[Scheduler] Error fetching prayer times from API: %v. Attempting to use cached schedule...", err)
+		dateKey := fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), now.Day())
+		if cached, cErr := s.storage.GetCachedJadwal(dateKey); cErr == nil && cached != "" {
+			if p, pErr := api.ParseRawSchedule(cached, now, s.cfg.Location); pErr == nil {
+				parsedTimes = p
+				log.Println("[Scheduler] Successfully loaded schedule from local SQLite cache.")
+			}
+		}
+	} else if rawJSON != "" {
+		dateKey := fmt.Sprintf("%04d-%02d-%02d", now.Year(), now.Month(), now.Day())
+		_ = s.storage.CacheJadwal(dateKey, rawJSON)
+	}
+
+	if parsedTimes == nil {
+		log.Printf("[Scheduler] Critical: Could not obtain prayer schedule for today %s", matrix.FormatIndonesianDate(now))
+		return
+	}
+
+	s.armDaytimeTimers(now, parsedTimes)
+}
+
+func (s *Scheduler) armDaytimeTimers(now time.Time, pt *api.ParsedPrayerTimes) {
+	s.timersMu.Lock()
+	defer s.timersMu.Unlock()
+
+	// Clear previous timers
+	for _, t := range s.timers {
+		t.Stop()
+	}
+	s.timers = nil
+
+	todayWeekday := now.Weekday()
+	daySchedule := matrix.GetDaySchedule(todayWeekday)
+
+	prayers := []struct {
+		name matrix.PrayerName
+		time time.Time
+		duty matrix.DutyAssignment
+	}{
+		{name: matrix.PrayerZhuhur, time: pt.Zhuhur, duty: daySchedule.Zhuhur},
+		{name: matrix.PrayerAshar, time: pt.Ashar, duty: daySchedule.Ashar},
+		{name: matrix.PrayerMaghrib, time: pt.Maghrib, duty: daySchedule.Maghrib},
+		{name: matrix.PrayerIsya, time: pt.Isya, duty: daySchedule.Isya},
+	}
+
+	for _, p := range prayers {
+		if p.duty.Skipped {
+			log.Printf("[Scheduler] Skipping %s on %s (duty marked skipped / Friday)", p.name, daySchedule.DayName)
+			continue
+		}
+
+		// Trigger reminder 10 minutes before prayer time
+		reminderTime := p.time.Add(-10 * time.Minute)
+		delay := reminderTime.Sub(now)
+
+		if delay > 0 {
+			prayerName := p.name
+			actualTime := p.time
+			duty := p.duty
+
+			log.Printf("[Scheduler] Scheduled %s reminder for %s (in %v)",
+				prayerName, reminderTime.Format("15:04:05"), delay.Round(time.Second))
+
+			timer := time.AfterFunc(delay, func() {
+				s.sendDaytimeReminder(prayerName, actualTime, duty)
+			})
+			s.timers = append(s.timers, timer)
+		} else {
+			log.Printf("[Scheduler] %s reminder time (%s) has already passed for today.",
+				p.name, reminderTime.Format("15:04:05"))
+		}
+	}
+}
+
+func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime time.Time, duty matrix.DutyAssignment) {
+	log.Printf("[Scheduler] Sending 10-min reminder for %s...", prayer)
+	msg := templates.BuildDaytimePrayerReminder(s.phonebook, prayer, prayerTime, duty)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+		log.Printf("[Scheduler] Failed to send daytime reminder for %s: %v", prayer, err)
+	} else {
+		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp.", prayer)
+	}
+}
+
+// RunSubuhKultumReminder executes the 20:30 WIB nightly Subuh & Kultum notification for tomorrow.
+func (s *Scheduler) RunSubuhKultumReminder() {
+	now := time.Now().In(s.cfg.Location)
+	tomorrow := now.AddDate(0, 0, 1)
+	tomorrowWeekday := tomorrow.Weekday()
+
+	log.Printf("[Scheduler] Preparing Subuh & Kultum reminder for tomorrow (%s)...", matrix.FormatIndonesianDate(tomorrow))
+
+	// Fetch tomorrow's Subuh duty from matrix
+	tomorrowSchedule := matrix.GetDaySchedule(tomorrowWeekday)
+	subuhDuty := tomorrowSchedule.Subuh
+
+	// Atomically get and advance Kultum speaker index
+	usedIdx, err := s.storage.AdvanceKultumIndex(len(matrix.KultumQueue))
+	if err != nil {
+		log.Printf("[Scheduler] Error advancing kultum index: %v, using default index 0", err)
+		usedIdx = 0
+	}
+	speaker := matrix.GetKultumSpeaker(usedIdx)
+
+	// Fetch tomorrow's Subuh time from API (or fallback)
+	var subuhTimeStr string
+	if pt, _, err := s.apiClient.FetchJadwal(s.cfg.Location, tomorrow); err == nil && pt != nil {
+		subuhTimeStr = pt.Subuh.Format("15:04")
+	}
+
+	msg := templates.BuildSubuhKultumReminder(s.phonebook, tomorrow, subuhTimeStr, subuhDuty, speaker)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+		log.Printf("[Scheduler] Failed to send Subuh/Kultum reminder: %v", err)
+	} else {
+		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully. Speaker: %s (Queue Index: %d)", speaker, usedIdx)
+	}
+}
+
+// RunFridayReminder sends Friday preparation reminder if enabled.
+func (s *Scheduler) RunFridayReminder() {
+	if !s.cfg.EnableJumatReminder {
+		log.Println("[Scheduler] Friday reminder is disabled (ENABLE_JUMAT_REMINDER=false). Skipping.")
+		return
+	}
+
+	now := time.Now().In(s.cfg.Location)
+	fridayDate := now.AddDate(0, 0, 1) // Tomorrow is Friday
+
+	log.Printf("[Scheduler] Sending Friday Reminder for %s...", matrix.FormatIndonesianDate(fridayDate))
+	msg := templates.BuildFridayReminder(s.phonebook, fridayDate)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+		log.Printf("[Scheduler] Failed to send Friday reminder: %v", err)
+	} else {
+		log.Println("[Scheduler] Friday reminder dispatched successfully.")
+	}
+}
+
+func (s *Scheduler) registerCommands() {
+	// !ping
+	s.bot.RegisterCommand("ping", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		return "🏓 *Pong!*\nBot Pengingat Sholat & Kultum Masjid Al-Wasii UNILA aktif 24/7.", nil, nil
+	})
+
+	// !jid
+	s.bot.RegisterCommand("jid", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		res := fmt.Sprintf("📍 *Info JID WhatsApp*\n• Chat JID : `%s`\n• Pengirim : `%s`\n\n_Gunakan Chat JID ini pada variabel TARGET_JID di .env / fly.toml._", chatJID.String(), senderJID.String())
+		return res, nil, nil
+	})
+
+	// !jadwal
+	s.bot.RegisterCommand("jadwal", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		now := time.Now().In(s.cfg.Location)
+		parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, now)
+		rawTimes := make(map[matrix.PrayerName]string)
+		if err == nil && parsed != nil {
+			rawTimes[matrix.PrayerSubuh] = parsed.Subuh.Format("15:04")
+			rawTimes[matrix.PrayerZhuhur] = parsed.Zhuhur.Format("15:04")
+			rawTimes[matrix.PrayerAshar] = parsed.Ashar.Format("15:04")
+			rawTimes[matrix.PrayerMaghrib] = parsed.Maghrib.Format("15:04")
+			rawTimes[matrix.PrayerIsya] = parsed.Isya.Format("15:04")
+		} else {
+			rawTimes[matrix.PrayerSubuh] = "04:45"
+			rawTimes[matrix.PrayerZhuhur] = "12:05"
+			rawTimes[matrix.PrayerAshar] = "15:20"
+			rawTimes[matrix.PrayerMaghrib] = "18:05"
+			rawTimes[matrix.PrayerIsya] = "19:15"
+		}
+
+		daySchedule := matrix.GetDaySchedule(now.Weekday())
+		kIdx, _ := s.storage.GetKultumIndex()
+		speaker := matrix.GetKultumSpeaker(kIdx)
+
+		msg := templates.BuildJadwalPreview(s.phonebook, now, rawTimes, daySchedule, speaker)
+		return "", &msg, nil
+	})
+
+	// !kultum
+	s.bot.RegisterCommand("kultum", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		currentIdx, _ := s.storage.GetKultumIndex()
+		var sb strings.Builder
+		sb.WriteString("🎙️ *ROTASI KULTUM SUBUH (ROUND-ROBIN)*\n")
+		sb.WriteString("Masjid Al-Wasii - UNILA\n────────────────────────\n")
+		for i, name := range matrix.KultumQueue {
+			marker := "  "
+			if i == currentIdx {
+				marker = "👉 "
+			}
+			tag := s.phonebook.FormatMention(name)
+			sb.WriteString(fmt.Sprintf("%s%d. %s (%s)\n", marker, i+1, tag, name))
+		}
+		sb.WriteString("────────────────────────\n")
+		sb.WriteString(fmt.Sprintf("_Penceramah berikutnya: *%s*_\n", matrix.GetKultumSpeaker(currentIdx)))
+		return sb.String(), nil, nil
+	})
+
+	// !test [prayer_name]
+	s.bot.RegisterCommand("test", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		if len(args) == 0 {
+			return "ℹ️ *Penggunaan:* `!test [subuh|zhuhur|ashar|maghrib|isya|jumat]`", nil, nil
+		}
+
+		now := time.Now().In(s.cfg.Location)
+		target := strings.ToLower(args[0])
+
+		switch target {
+		case "subuh":
+			tomorrow := now.AddDate(0, 0, 1)
+			sched := matrix.GetDaySchedule(tomorrow.Weekday())
+			kIdx, _ := s.storage.GetKultumIndex()
+			speaker := matrix.GetKultumSpeaker(kIdx)
+
+			subuhTime := "04:44"
+			if parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, tomorrow); err == nil && parsed != nil {
+				subuhTime = parsed.Subuh.Format("15:04")
+			}
+			msg := templates.BuildSubuhKultumReminder(s.phonebook, tomorrow, subuhTime, sched.Subuh, speaker)
+			return "", &msg, nil
+
+		case "zhuhur", "ashar", "maghrib", "isya":
+			prayerName := matrix.NormalizePrayerName(target)
+			sched := matrix.GetDaySchedule(now.Weekday())
+			duty := sched.GetDuty(prayerName)
+
+			prayerTime := now.Add(10 * time.Minute)
+			if parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, now); err == nil && parsed != nil {
+				switch prayerName {
+				case matrix.PrayerZhuhur:
+					prayerTime = parsed.Zhuhur
+				case matrix.PrayerAshar:
+					prayerTime = parsed.Ashar
+				case matrix.PrayerMaghrib:
+					prayerTime = parsed.Maghrib
+				case matrix.PrayerIsya:
+					prayerTime = parsed.Isya
+				}
+			}
+			msg := templates.BuildDaytimePrayerReminder(s.phonebook, prayerName, prayerTime, duty)
+			return "", &msg, nil
+
+		case "jumat":
+			msg := templates.BuildFridayReminder(s.phonebook, now.AddDate(0, 0, 1))
+			return "", &msg, nil
+
+		default:
+			return fmt.Sprintf("⚠️ Sholat %q tidak dikenali. Pilih: subuh, zhuhur, ashar, maghrib, isya, jumat", target), nil, nil
+		}
+	})
+}

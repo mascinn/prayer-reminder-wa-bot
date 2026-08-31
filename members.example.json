@@ -1,0 +1,57 @@
+[
+  {
+    "display_name": "Fajar",
+    "phone": "6285700000001",
+    "aliases": ["fajar"]
+  },
+  {
+    "display_name": "Iskandar",
+    "phone": "6285700000002",
+    "aliases": ["iskandar"]
+  },
+  {
+    "display_name": "Ananda",
+    "phone": "6285100000003",
+    "aliases": ["ananda", "nanda"]
+  },
+  {
+    "display_name": "Arif",
+    "phone": "6283100000004",
+    "aliases": ["arif"]
+  },
+  {
+    "display_name": "Arjuna",
+    "phone": "6285200000005",
+    "aliases": ["arjuna", "juna"]
+  },
+  {
+    "display_name": "Basit",
+    "phone": "6285700000006",
+    "aliases": ["basit", "abdul basit"]
+  },
+  {
+    "display_name": "Imam",
+    "phone": "6288200000007",
+    "aliases": ["imam"]
+  },
+  {
+    "display_name": "Haris",
+    "phone": "6282300000008",
+    "aliases": ["haris", "dhiki", "diki"]
+  },
+  {
+    "display_name": "Thoriq",
+    "phone": "6285600000009",
+    "aliases": ["thoriq", "torik", "t"]
+  },
+  {
+    "display_name": "Ruzi",
+    "phone": "6282200000010",
+    "aliases": ["ruzi"]
+  },
+  {
+    "display_name": "Makhasin",
+    "phone": "6285700000011",
+    "aliases": ["makhasin", "khasin"]
+  }
+]
