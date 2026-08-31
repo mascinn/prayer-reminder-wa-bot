@@ -198,6 +198,13 @@ func (s *Scheduler) armDaytimeTimers(now time.Time, pt *api.ParsedPrayerTimes) {
 	}
 }
 
+func (s *Scheduler) getTargetJID() string {
+	if val, err := s.storage.GetState("target_jid"); err == nil && val != "" {
+		return val
+	}
+	return s.cfg.TargetJID
+}
+
 func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime time.Time, duty matrix.DutyAssignment) {
 	log.Printf("[Scheduler] Sending 15-min reminder for %s...", prayer)
 	msg := templates.BuildDaytimePrayerReminder(s.phonebook, prayer, prayerTime, duty)
@@ -205,11 +212,17 @@ func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime tim
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+	targetJID := s.getTargetJID()
+	if targetJID == "" {
+		log.Printf("[Scheduler] Target JID is not set, skipping %s reminder.", prayer)
+		return
+	}
+
+	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send daytime reminder for %s: %v", prayer, err)
 		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp.", prayer)
+		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp (%s).", prayer, targetJID)
 		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", "SUCCESS")
 	}
 }
@@ -245,11 +258,17 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+	targetJID := s.getTargetJID()
+	if targetJID == "" {
+		log.Println("[Scheduler] Target JID is not set, skipping Subuh/Kultum reminder.")
+		return
+	}
+
+	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Subuh/Kultum reminder: %v", err)
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully. Speaker: %s (Queue Index: %d)", speaker, usedIdx)
+		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully to %s. Speaker: %s (Queue Index: %d)", targetJID, speaker, usedIdx)
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, "SUCCESS")
 	}
 }
@@ -270,11 +289,17 @@ func (s *Scheduler) RunFridayReminder() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
+	targetJID := s.getTargetJID()
+	if targetJID == "" {
+		log.Println("[Scheduler] Target JID is not set, skipping Friday reminder.")
+		return
+	}
+
+	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Friday reminder: %v", err)
 		_ = s.storage.LogReminder("friday_prep", "21:00", "-", "-", "-", fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Println("[Scheduler] Friday reminder dispatched successfully.")
+		log.Printf("[Scheduler] Friday reminder dispatched successfully to %s.", targetJID)
 		_ = s.storage.LogReminder("friday_prep", "21:00", "-", "-", "-", "SUCCESS")
 	}
 }
@@ -287,9 +312,28 @@ func (s *Scheduler) registerCommands() {
 
 	// !jid
 	s.bot.RegisterCommand("jid", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
-		res := fmt.Sprintf("📍 *Info JID WhatsApp*\n• Chat JID : `%s`\n• Pengirim : `%s`\n\n_Gunakan Chat JID ini pada variabel TARGET_JID di .env / fly.toml._", chatJID.String(), senderJID.String())
+		currentTarget := s.getTargetJID()
+		isCurrent := "Bukan Target"
+		if chatJID.String() == currentTarget {
+			isCurrent = "✅ Target Aktif Saat Ini"
+		}
+		res := fmt.Sprintf("📍 *Info JID WhatsApp*\n• Chat JID : `%s` (%s)\n• Pengirim : `%s`\n• Target Pengingat : `%s`\n\n_Ketik `!setgrup` di grup ini untuk menjadikan grup ini sebagai target pengingat sholat._",
+			chatJID.String(), isCurrent, senderJID.String(), currentTarget)
 		return res, nil, nil
 	})
+
+	// !setgrup / !settarget
+	setGroupHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		if chatJID.Server != types.GroupServer {
+			return "⚠️ Perintah ini harus diketik di dalam grup WhatsApp yang ingin dijadikan target pengingat.", nil, nil
+		}
+		if err := s.storage.SetState("target_jid", chatJID.String()); err != nil {
+			return fmt.Sprintf("⚠️ Gagal menyimpan target grup: %v", err), nil, nil
+		}
+		return fmt.Sprintf("✅ *Grup Target Pengingat Berhasil Diubah!*\n• JID: `%s`\n\n_Mulai sekarang seluruh pengingat Sholat, Kultum Subuh, dan Jum'at otomatis dikirim ke grup ini._ 🕌", chatJID.String()), nil, nil
+	}
+	s.bot.RegisterCommand("setgrup", setGroupHandler)
+	s.bot.RegisterCommand("settarget", setGroupHandler)
 
 	// !jadwal
 	s.bot.RegisterCommand("jadwal", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
