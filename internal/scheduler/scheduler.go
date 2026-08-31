@@ -331,6 +331,42 @@ func (s *Scheduler) registerCommands() {
 		return sb.String(), nil, nil
 	})
 
+	// !setkultum [1-10 / nama]
+	s.bot.RegisterCommand("setkultum", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		if len(args) == 0 {
+			return "ℹ️ *Penggunaan:* `!setkultum [1-10 / nama]`\nContoh: `!setkultum 1` atau `!setkultum iskandar`", nil, nil
+		}
+
+		arg := strings.ToLower(args[0])
+		targetIdx := -1
+
+		// Check if it's a number 1-10
+		for i, name := range matrix.KultumQueue {
+			numStr := fmt.Sprintf("%d", i+1)
+			if arg == numStr || strings.ToLower(name) == arg {
+				targetIdx = i
+				break
+			}
+			// Check aliases in phonebook
+			if m, ok := s.phonebook.Find(arg); ok && strings.EqualFold(m.DisplayName, name) {
+				targetIdx = i
+				break
+			}
+		}
+
+		if targetIdx == -1 {
+			return fmt.Sprintf("⚠️ Nama/nomor antrean %q tidak ditemukan di daftar kultum.", args[0]), nil, nil
+		}
+
+		if err := s.storage.SetKultumIndex(targetIdx); err != nil {
+			return fmt.Sprintf("⚠️ Gagal mengubah antrean kultum: %v", err), nil, nil
+		}
+
+		speaker := matrix.GetKultumSpeaker(targetIdx)
+		tag := s.phonebook.FormatMention(speaker)
+		return fmt.Sprintf("✅ *Antrean Kultum Berhasil Diubah!*\n👉 Giliran berikutnya: *%d. %s* (%s)\n_Akan bertugas pada jadwal Subuh berikutnya._", targetIdx+1, tag, speaker), nil, nil
+	})
+
 	// !test [prayer_name]
 	s.bot.RegisterCommand("test", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
 		if len(args) == 0 {
