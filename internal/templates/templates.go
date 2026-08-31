@@ -183,7 +183,7 @@ _Semoga Allah senantiasa memberikan keberkahan atas setiap keikhlasan yang kita 
 	}
 }
 
-// BuildCanteenReminder formats the 15:30 WIB canteen cash collection notification.
+// BuildCanteenReminder formats the 15:00 WIB canteen cash collection notification.
 func BuildCanteenReminder(reg *phonebook.Registry, date time.Time, officers []string) ReminderMessage {
 	var jids []string
 	var officerLines []string
@@ -204,7 +204,12 @@ func BuildCanteenReminder(reg *phonebook.Registry, date time.Time, officers []st
 Petugas:
 %s
 
-*Dimohon kepada petugas untuk segera melakukan penarikan setoran kantin sore ini.*`,
+🔗 *Catat Setoran di SISEKA:*
+🌐 https://siseka-wasii.vercel.app/
+👤 Username : *bph*
+🔑 Password : *barengbareng*
+
+*Dimohon kepada petugas untuk segera melakukan penarikan dan pencatatan setoran kantin sore ini.*`,
 		matrix.FormatIndonesianDate(date),
 		officersText,
 	)
