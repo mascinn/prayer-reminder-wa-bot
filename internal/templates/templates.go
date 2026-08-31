@@ -67,14 +67,15 @@ func BuildSubuhKultumReminder(
 	}
 
 	msg := fmt.Sprintf(`🌙 *PENGINGAT SUBUH & KULTUM BESOK*
-_%s • Subuh %s WIB_
+%s
+Subuh %s WIB
 
 Petugas:
 📢 Adzan  : %s
 👳 Imam   : %s
 🎙️ Kultum : %s
 
-_Dimohon kepada petugas untuk mempersiapkan diri dan bangun lebih awal._`,
+*Dimohon kepada petugas untuk mempersiapkan diri dan bangun lebih awal.*`,
 		matrix.FormatIndonesianDate(tomorrowDate),
 		subuhTimeStr,
 		adzanTag,

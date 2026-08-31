@@ -333,7 +333,7 @@ func (s *Scheduler) registerCommands() {
 			sb.WriteString(fmt.Sprintf("%s%d. %s (%s)\n", marker, i+1, tag, name))
 		}
 		sb.WriteString("────────────────────────\n")
-		sb.WriteString(fmt.Sprintf("_Penceramah berikutnya: *%s*_\n", matrix.GetKultumSpeaker(currentIdx)))
+		sb.WriteString(fmt.Sprintf("_Petugas kultum berikutnya: *%s*_\n", matrix.GetKultumSpeaker(currentIdx)))
 		return sb.String(), nil, nil
 	})
 
