@@ -92,22 +92,7 @@ func main() {
 	}
 	defer bot.Stop()
 
-	// 5. Initialize & Start Scheduler
-	sched := scheduler.NewScheduler(cfg, store, reg, bot)
-	if err := sched.Start(); err != nil {
-		log.Fatalf("[Main] Failed to start scheduler: %v", err)
-	}
-	defer sched.Stop()
-
-	// 6. Connect WhatsApp client
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := bot.Start(ctx); err != nil {
-		log.Fatalf("[Main] WhatsApp client connection error: %v", err)
-	}
-
-	// 7. Initialize lightweight HTTP status dashboard (Render reads $PORT, default 8080)
+	// 5. Initialize lightweight HTTP status dashboard (Render reads $PORT, default 8080)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -205,6 +190,21 @@ func main() {
 			log.Printf("[HTTP] Server error: %v", err)
 		}
 	}()
+
+	// 6. Initialize & Start Scheduler
+	sched := scheduler.NewScheduler(cfg, store, reg, bot)
+	if err := sched.Start(); err != nil {
+		log.Printf("[Main] Failed to start scheduler: %v", err)
+	}
+	defer sched.Stop()
+
+	// 7. Connect WhatsApp client
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := bot.Start(ctx); err != nil {
+		log.Printf("[Main] WhatsApp client connection error: %v", err)
+	}
 
 	// 8. Setup graceful shutdown handling
 	sigChan := make(chan os.Signal, 1)

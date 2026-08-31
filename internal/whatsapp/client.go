@@ -58,9 +58,15 @@ func NewBot(cfg *config.Config, storage *storage.Storage, reg *phonebook.Registr
 	if storage != nil && storage.IsTurso() {
 		container = sqlstore.NewWithDB(storage.DB(), "sqlite", dbLog)
 		if err := container.Upgrade(context.Background()); err != nil {
-			return nil, fmt.Errorf("failed to upgrade whatsmeow Turso sqlstore: %w", err)
+			log.Printf("[WhatsApp] Notice: Turso sqlstore direct schema upgrade note: %v. Using local sqlite session.", err)
+			dbDSN := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", cfg.DBPath)
+			container, err = sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize fallback whatsmeow sqlstore: %w", err)
+			}
+		} else {
+			log.Println("[WhatsApp] Using persistent Turso Cloud for WhatsApp session! ☁️")
 		}
-		log.Println("[WhatsApp] Using persistent Turso Cloud for WhatsApp session! ☁️")
 	} else {
 		dbDSN := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", cfg.DBPath)
 		container, err = sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
