@@ -182,7 +182,7 @@ _Semoga Allah senantiasa memberikan keberkahan atas setiap keikhlasan yang kita 
 	}
 }
 
-// formatOfficerTag returns `@628xxx (DisplayName)` if found in phonebook, or just `@Name`
+// formatOfficerTag returns `@628xxx (DisplayName)` (or `@628xxx @628yyy (DisplayName)`) if found in phonebook, or just `@Name`
 func formatOfficerTag(reg *phonebook.Registry, name string, jids *[]string) string {
 	if name == "" {
 		return "-"
@@ -191,10 +191,11 @@ func formatOfficerTag(reg *phonebook.Registry, name string, jids *[]string) stri
 		return "@" + name
 	}
 	m, ok := reg.Find(name)
-	if ok && m.Phone != "" {
-		jid := m.WhatsAppJID()
-		if jid != "" {
-			*jids = append(*jids, jid)
+	if ok && len(m.AllPhones()) > 0 {
+		for _, jid := range m.WhatsAppJIDs() {
+			if jid != "" {
+				*jids = append(*jids, jid)
+			}
 		}
 		return fmt.Sprintf("%s (%s)", m.MentionTag(), m.DisplayName)
 	}

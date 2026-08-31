@@ -2,33 +2,68 @@ package phonebook
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"strings"
 )
 
-// Member represents a community member with their display name, phone number, and known aliases.
+// Member represents a community member with their display name, phone number(s), and known aliases.
 type Member struct {
 	DisplayName string   `json:"display_name"`
-	Phone       string   `json:"phone"` // International format without + or spaces: 628xxx
+	Phone       string   `json:"phone,omitempty"`  // Single number fallback: 628xxx
+	Phones      []string `json:"phones,omitempty"` // Multiple numbers support: ["628xxx", "628yyy"]
 	Aliases     []string `json:"aliases"`
 }
 
-// WhatsAppJID returns the WhatsApp user JID (e.g. 628xxx@s.whatsapp.net).
-func (m Member) WhatsAppJID() string {
-	if m.Phone == "" {
-		return ""
+// AllPhones returns all registered phone numbers for the member in international format.
+func (m Member) AllPhones() []string {
+	var list []string
+	if len(m.Phones) > 0 {
+		for _, p := range m.Phones {
+			cleaned := cleanPhone(p)
+			if cleaned != "" {
+				list = append(list, cleaned)
+			}
+		}
 	}
-	return m.Phone + "@s.whatsapp.net"
+	if len(list) == 0 && strings.TrimSpace(m.Phone) != "" {
+		cleaned := cleanPhone(m.Phone)
+		if cleaned != "" {
+			list = append(list, cleaned)
+		}
+	}
+	return list
 }
 
-// MentionTag returns the WhatsApp mention string (e.g. @628xxx).
+// WhatsAppJID returns the primary WhatsApp user JID (e.g. 628xxx@s.whatsapp.net).
+func (m Member) WhatsAppJID() string {
+	phones := m.AllPhones()
+	if len(phones) == 0 {
+		return ""
+	}
+	return phones[0] + "@s.whatsapp.net"
+}
+
+// WhatsAppJIDs returns all WhatsApp user JIDs for the member.
+func (m Member) WhatsAppJIDs() []string {
+	var jids []string
+	for _, p := range m.AllPhones() {
+		jids = append(jids, p+"@s.whatsapp.net")
+	}
+	return jids
+}
+
+// MentionTag returns the WhatsApp mention string (e.g. "@628xxx" or "@628xxx @628yyy").
 func (m Member) MentionTag() string {
-	if m.Phone == "" {
+	phones := m.AllPhones()
+	if len(phones) == 0 {
 		return "@" + m.DisplayName
 	}
-	return "@" + m.Phone
+	var tags []string
+	for _, p := range phones {
+		tags = append(tags, "@"+p)
+	}
+	return strings.Join(tags, " ")
 }
 
 // Registry stores all registered members and provides lookup utilities.
@@ -39,16 +74,16 @@ type Registry struct {
 
 // DefaultMembers provides the canonical structure/aliases without hardcoding private phone numbers in Git.
 var DefaultMembers = []Member{
-	{DisplayName: "Fajar", Aliases: []string{"fajar"}},
+	{DisplayName: "Fajar", Aliases: []string{"fajar", "fajar aji pangestu"}},
 	{DisplayName: "Iskandar", Aliases: []string{"iskandar"}},
-	{DisplayName: "Ananda", Aliases: []string{"ananda", "nanda"}},
-	{DisplayName: "Arif", Aliases: []string{"arif"}},
-	{DisplayName: "Arjuna", Aliases: []string{"arjuna", "juna"}},
-	{DisplayName: "Basit", Aliases: []string{"basit", "abdul basit"}},
-	{DisplayName: "Imam", Aliases: []string{"imam"}},
-	{DisplayName: "Haris", Aliases: []string{"haris", "dhiki", "diki"}},
-	{DisplayName: "Thoriq", Aliases: []string{"thoriq", "torik", "t"}},
-	{DisplayName: "Ruzi", Aliases: []string{"ruzi"}},
+	{DisplayName: "Ananda", Aliases: []string{"ananda", "nanda", "ananda kusuma"}},
+	{DisplayName: "Arif", Aliases: []string{"arif", "arif hidayat"}},
+	{DisplayName: "Arjuna", Aliases: []string{"arjuna", "juna", "arjuna yulizar mahendra"}},
+	{DisplayName: "Basit", Aliases: []string{"basit", "abdul basit", "basit diwa fakara"}},
+	{DisplayName: "Imam", Aliases: []string{"imam", "imam rifai"}},
+	{DisplayName: "Haris", Aliases: []string{"haris", "dhiki", "diki", "dhiki harisno"}},
+	{DisplayName: "Thoriq", Aliases: []string{"thoriq", "torik", "t", "torik lianda"}},
+	{DisplayName: "Ruzi", Aliases: []string{"ruzi", "ruzi yandi"}},
 	{DisplayName: "Makhasin", Aliases: []string{"makhasin", "khasin"}},
 }
 
@@ -69,7 +104,7 @@ func NewRegistryFromMembers(members []Member) *Registry {
 
 // LoadRegistry loads member mappings from environment JSON string, file path, or fallback candidates.
 func LoadRegistry(membersFile string, membersJSON string) *Registry {
-	// 1. If MEMBERS_JSON is provided via env / Fly secrets
+	// 1. If MEMBERS_JSON is provided via env / secrets
 	if strings.TrimSpace(membersJSON) != "" {
 		var members []Member
 		if err := json.Unmarshal([]byte(membersJSON), &members); err == nil && len(members) > 0 {
@@ -122,21 +157,28 @@ func (r *Registry) Find(nameOrAlias string) (Member, bool) {
 	return m, ok
 }
 
-// FormatMention formats a name or alias into a WhatsApp mention tag (@628xxx) if found,
-// or @Name if not found in the phonebook.
+// FormatMention formats a name or alias into WhatsApp mention tag(s) (@628xxx or @628xxx @628yyy).
 func (r *Registry) FormatMention(nameOrAlias string) string {
-	if m, ok := r.Find(nameOrAlias); ok && m.Phone != "" {
+	if m, ok := r.Find(nameOrAlias); ok && len(m.AllPhones()) > 0 {
 		return m.MentionTag()
 	}
 	return "@" + strings.TrimSpace(nameOrAlias)
 }
 
-// GetJID returns the WhatsApp user JID for a given name or alias.
+// GetJID returns the primary WhatsApp user JID for a given name or alias.
 func (r *Registry) GetJID(nameOrAlias string) (string, bool) {
-	if m, ok := r.Find(nameOrAlias); ok && m.Phone != "" {
+	if m, ok := r.Find(nameOrAlias); ok && len(m.AllPhones()) > 0 {
 		return m.WhatsAppJID(), true
 	}
 	return "", false
+}
+
+// GetAllJIDs returns all WhatsApp user JIDs for a given name or alias (supports multiple numbers).
+func (r *Registry) GetAllJIDs(nameOrAlias string) []string {
+	if m, ok := r.Find(nameOrAlias); ok {
+		return m.WhatsAppJIDs()
+	}
+	return nil
 }
 
 // GetAllMembers returns a slice of all registered members.
@@ -144,15 +186,19 @@ func (r *Registry) GetAllMembers() []Member {
 	return r.members
 }
 
-func normalize(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
+func cleanPhone(phone string) string {
+	digits := ""
+	for _, ch := range strings.TrimSpace(phone) {
+		if ch >= '0' && ch <= '9' {
+			digits += string(ch)
+		}
+	}
+	if strings.HasPrefix(digits, "08") {
+		digits = "628" + digits[2:]
+	}
+	return digits
 }
 
-// ExportDefaultJSON returns the JSON string representation of members.
-func ExportDefaultJSON(members []Member) (string, error) {
-	bytes, err := json.MarshalIndent(members, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal members: %w", err)
-	}
-	return string(bytes), nil
+func normalize(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }

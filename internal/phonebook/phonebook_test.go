@@ -97,3 +97,29 @@ func TestUnknownMember(t *testing.T) {
 		t.Errorf("GetJID('UnknownPerson') should return false, got %q, %v", jid, ok)
 	}
 }
+
+func TestMultiplePhones(t *testing.T) {
+	members := []Member{
+		{
+			DisplayName: "Ruzi",
+			Phones:      []string{"6282298399181", "6285711024192"},
+			Aliases:     []string{"ruzi", "ruzi yandi"},
+		},
+	}
+	reg := NewRegistryFromMembers(members)
+	m, ok := reg.Find("ruzi yandi")
+	if !ok {
+		t.Fatal("Failed to find ruzi yandi")
+	}
+	jids := m.WhatsAppJIDs()
+	if len(jids) != 2 {
+		t.Fatalf("len(jids) = %d; want 2", len(jids))
+	}
+	if jids[0] != "6282298399181@s.whatsapp.net" || jids[1] != "6285711024192@s.whatsapp.net" {
+		t.Errorf("Unexpected JIDs: %v", jids)
+	}
+	tag := reg.FormatMention("ruzi")
+	if tag != "@6282298399181 @6285711024192" {
+		t.Errorf("FormatMention = %q; want '@6282298399181 @6285711024192'", tag)
+	}
+}

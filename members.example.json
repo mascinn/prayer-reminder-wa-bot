@@ -2,7 +2,7 @@
   {
     "display_name": "Fajar",
     "phone": "6285700000001",
-    "aliases": ["fajar"]
+    "aliases": ["fajar", "fajar aji pangestu"]
   },
   {
     "display_name": "Iskandar",
@@ -12,42 +12,42 @@
   {
     "display_name": "Ananda",
     "phone": "6285100000003",
-    "aliases": ["ananda", "nanda"]
+    "aliases": ["ananda", "nanda", "ananda kusuma"]
   },
   {
     "display_name": "Arif",
     "phone": "6283100000004",
-    "aliases": ["arif"]
+    "aliases": ["arif", "arif hidayat"]
   },
   {
     "display_name": "Arjuna",
     "phone": "6285200000005",
-    "aliases": ["arjuna", "juna"]
+    "aliases": ["arjuna", "juna", "arjuna yulizar mahendra"]
   },
   {
     "display_name": "Basit",
     "phone": "6285700000006",
-    "aliases": ["basit", "abdul basit"]
+    "aliases": ["basit", "abdul basit", "basit diwa fakara"]
   },
   {
     "display_name": "Imam",
     "phone": "6288200000007",
-    "aliases": ["imam"]
+    "aliases": ["imam", "imam rifai"]
   },
   {
     "display_name": "Haris",
     "phone": "6282300000008",
-    "aliases": ["haris", "dhiki", "diki"]
+    "aliases": ["haris", "dhiki", "diki", "dhiki harisno"]
   },
   {
     "display_name": "Thoriq",
     "phone": "6285600000009",
-    "aliases": ["thoriq", "torik", "t"]
+    "aliases": ["thoriq", "torik", "t", "torik lianda"]
   },
   {
     "display_name": "Ruzi",
-    "phone": "6282200000010",
-    "aliases": ["ruzi"]
+    "phones": ["6282200000010", "6285700000010"],
+    "aliases": ["ruzi", "ruzi yandi"]
   },
   {
     "display_name": "Makhasin",
