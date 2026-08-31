@@ -183,6 +183,102 @@ _Semoga Allah senantiasa memberikan keberkahan atas setiap keikhlasan yang kita 
 	}
 }
 
+// BuildCanteenReminder formats the 15:30 WIB canteen cash collection notification.
+func BuildCanteenReminder(reg *phonebook.Registry, date time.Time, officers []string) ReminderMessage {
+	var jids []string
+	var officerLines []string
+
+	for _, officer := range officers {
+		tag := formatOfficerTag(reg, officer, &jids)
+		officerLines = append(officerLines, "👥 "+tag)
+	}
+
+	officersText := strings.Join(officerLines, "\n")
+	if len(officerLines) == 0 {
+		officersText = "_Tidak ada jadwal piket kantin hari ini._"
+	}
+
+	msg := fmt.Sprintf(`🍱 *PENGINGAT TARIK SETORAN KANTIN*
+%s
+
+Petugas:
+%s
+
+*Dimohon kepada petugas untuk segera melakukan penarikan setoran kantin sore ini.*`,
+		matrix.FormatIndonesianDate(date),
+		officersText,
+	)
+
+	return ReminderMessage{
+		Text:         msg,
+		MentionedJID: uniqueJIDs(jids),
+	}
+}
+
+// BuildCanteenScheduleView formats the full weekly schedule and highlights today's officers.
+func BuildCanteenScheduleView(reg *phonebook.Registry, now time.Time, weeklySchedule map[time.Weekday][]string) ReminderMessage {
+	var jids []string
+
+	days := []struct {
+		weekday time.Weekday
+		name    string
+	}{
+		{time.Monday, "Senin"},
+		{time.Tuesday, "Selasa"},
+		{time.Wednesday, "Rabu"},
+		{time.Thursday, "Kamis"},
+		{time.Friday, "Jumat"},
+	}
+
+	var scheduleLines []string
+	for _, d := range days {
+		officers := weeklySchedule[d.weekday]
+		var tagList []string
+		for _, off := range officers {
+			tag := formatOfficerTag(reg, off, &jids)
+			tagList = append(tagList, tag)
+		}
+		tagsStr := strings.Join(tagList, ", ")
+		if len(tagList) == 0 {
+			tagsStr = "-"
+		}
+		prefix := "•"
+		if d.weekday == now.Weekday() {
+			prefix = "👉"
+		}
+		scheduleLines = append(scheduleLines, fmt.Sprintf("%s *%s* : %s", prefix, d.name, tagsStr))
+	}
+
+	todayOfficers := weeklySchedule[now.Weekday()]
+	var todaySection string
+	if len(todayOfficers) > 0 {
+		var todayTags []string
+		for _, off := range todayOfficers {
+			tag := formatOfficerTag(reg, off, &jids)
+			todayTags = append(todayTags, "👥 "+tag)
+		}
+		todaySection = fmt.Sprintf("\n────────────────────────\n👉 *Petugas Hari Ini (%s):*\n%s\n────────────────────────",
+			matrix.FormatIndonesianDate(now), strings.Join(todayTags, "\n"))
+	} else {
+		todaySection = "\n────────────────────────\n_Tidak ada jadwal tarik kantin untuk hari ini (Sabtu/Ahad libur)._\n────────────────────────"
+	}
+
+	msg := fmt.Sprintf(`🍱 *JADWAL TARIK SETORAN KANTIN*
+Masjid Al-Wasii - UNILA
+────────────────────────
+%s
+%s
+_Pengingat otomatis dikirim setiap Senin s.d. Jumat pukul 15:00 WIB._`,
+		strings.Join(scheduleLines, "\n"),
+		todaySection,
+	)
+
+	return ReminderMessage{
+		Text:         msg,
+		MentionedJID: uniqueJIDs(jids),
+	}
+}
+
 // formatOfficerTag returns `@628xxx (DisplayName)` (or `@628xxx @628yyy (DisplayName)`) if found in phonebook, or just `@Name`
 func formatOfficerTag(reg *phonebook.Registry, name string, jids *[]string) string {
 	if name == "" {

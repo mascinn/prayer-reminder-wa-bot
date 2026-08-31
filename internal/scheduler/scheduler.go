@@ -94,6 +94,15 @@ func (s *Scheduler) Start() error {
 		return fmt.Errorf("failed to schedule Friday reminder cron: %w", err)
 	}
 
+	// 4. Canteen Collection Reminder at 15:00:00 WIB every Monday to Friday (Days 1-5)
+	_, err = s.cronEngine.AddFunc("0 0 15 * * 1-5", func() {
+		log.Println("[Scheduler] Cron triggered: Canteen collection reminder at 15:00 WIB")
+		s.RunCanteenReminder()
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule Canteen reminder cron: %w", err)
+	}
+
 	s.cronEngine.Start()
 
 	// Perform initial fetch and arm today's remaining prayers on startup
@@ -304,6 +313,43 @@ func (s *Scheduler) RunFridayReminder() {
 	}
 }
 
+// RunCanteenReminder executes the 15:00 WIB Monday-Friday canteen collection reminder.
+func (s *Scheduler) RunCanteenReminder() {
+	now := time.Now().In(s.cfg.Location)
+	weekday := now.Weekday()
+
+	if weekday < time.Monday || weekday > time.Friday {
+		log.Println("[Scheduler] Canteen reminder skipped (Weekend).")
+		return
+	}
+
+	officers, err := s.storage.GetCanteenOfficers(weekday)
+	if err != nil || len(officers) == 0 {
+		log.Printf("[Scheduler] No canteen officers found for %s: %v", weekday, err)
+		return
+	}
+
+	log.Printf("[Scheduler] Sending Canteen Reminder for %s (%s)...", matrix.FormatIndonesianDate(now), strings.Join(officers, ", "))
+	msg := templates.BuildCanteenReminder(s.phonebook, now, officers)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	targetJID := s.getTargetJID()
+	if targetJID == "" {
+		log.Println("[Scheduler] Target JID is not set, skipping Canteen reminder.")
+		return
+	}
+
+	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
+		log.Printf("[Scheduler] Failed to send Canteen reminder: %v", err)
+		_ = s.storage.LogReminder("canteen_collection", "15:00", strings.Join(officers, ", "), "-", "-", fmt.Sprintf("FAILED: %v", err))
+	} else {
+		log.Printf("[Scheduler] Canteen reminder dispatched successfully to %s.", targetJID)
+		_ = s.storage.LogReminder("canteen_collection", "15:00", strings.Join(officers, ", "), "-", "-", "SUCCESS")
+	}
+}
+
 func (s *Scheduler) registerCommands() {
 	// !ping
 	s.bot.RegisterCommand("ping", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
@@ -465,8 +511,29 @@ func (s *Scheduler) registerCommands() {
 			msg := templates.BuildFridayReminder(s.phonebook, now.AddDate(0, 0, 1))
 			return "", &msg, nil
 
+		case "kantin":
+			officers, _ := s.storage.GetCanteenOfficers(now.Weekday())
+			if len(officers) == 0 {
+				officers = []string{"Ruzi", "Arjuna"} // preview sample
+			}
+			msg := templates.BuildCanteenReminder(s.phonebook, now, officers)
+			return "", &msg, nil
+
 		default:
-			return fmt.Sprintf("⚠️ Sholat %q tidak dikenali. Pilih: subuh, zhuhur, ashar, maghrib, isya, jumat", target), nil, nil
+			return fmt.Sprintf("⚠️ Target test %q tidak dikenali. Pilih: subuh, zhuhur, ashar, maghrib, isya, jumat, kantin", target), nil, nil
 		}
 	})
+
+	// !kantin / !jadwalkantin
+	canteenHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		now := time.Now().In(s.cfg.Location)
+		weekly, err := s.storage.LoadCanteenSchedule()
+		if err != nil || len(weekly) == 0 {
+			return "⚠️ Data jadwal kantin belum tersedia di database.", nil, nil
+		}
+		msg := templates.BuildCanteenScheduleView(s.phonebook, now, weekly)
+		return "", &msg, nil
+	}
+	s.bot.RegisterCommand("kantin", canteenHandler)
+	s.bot.RegisterCommand("jadwalkantin", canteenHandler)
 }

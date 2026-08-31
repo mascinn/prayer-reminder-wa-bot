@@ -120,6 +120,12 @@ func (s *Storage) migrate() error {
 			status TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS canteen_schedules (
+			weekday INTEGER PRIMARY KEY,
+			day_name TEXT NOT NULL,
+			officers_json TEXT NOT NULL,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`,
 	}
 
 	for _, q := range queries {
@@ -448,6 +454,107 @@ func (s *Storage) AutoSeedInitialData(members []phonebook.Member, schedule *matr
 			log.Println("[Storage] Auto-seeded weekly duty matrix into database.")
 		}
 	}
+
+	existingCanteen, err := s.LoadCanteenSchedule()
+	if err == nil && len(existingCanteen) == 0 {
+		defaultCanteen := map[time.Weekday][]string{
+			time.Monday:    {"Ruzi", "Arjuna"},
+			time.Tuesday:   {"Fajar", "Imam"},
+			time.Wednesday: {"Torik", "Basit"},
+			time.Thursday:  {"Makhasin", "Ananda"},
+			time.Friday:    {"Iskandar", "Haris", "Arif"},
+		}
+		if err := s.SaveCanteenSchedule(defaultCanteen); err == nil {
+			log.Println("[Storage] Auto-seeded default canteen duty schedule into database.")
+		}
+	}
+}
+
+// --- Canteen Duty Schedule Operations ---
+
+// SaveCanteenSchedule persists the weekly canteen collection roster.
+func (s *Storage) SaveCanteenSchedule(schedule map[time.Weekday][]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dayNames := map[time.Weekday]string{
+		time.Monday:    "Senin",
+		time.Tuesday:   "Selasa",
+		time.Wednesday: "Rabu",
+		time.Thursday:  "Kamis",
+		time.Friday:    "Jumat",
+	}
+
+	for weekday, officers := range schedule {
+		officersJSON, err := json.Marshal(officers)
+		if err != nil {
+			continue
+		}
+		dayName := dayNames[weekday]
+		if dayName == "" {
+			dayName = weekday.String()
+		}
+
+		query := `
+		INSERT INTO canteen_schedules (weekday, day_name, officers_json, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(weekday) DO UPDATE SET
+			day_name = excluded.day_name,
+			officers_json = excluded.officers_json,
+			updated_at = excluded.updated_at;
+		`
+		if _, err := s.db.Exec(query, int(weekday), dayName, string(officersJSON), time.Now().UTC()); err != nil {
+			return fmt.Errorf("failed to save canteen schedule for %s: %w", dayName, err)
+		}
+	}
+	return nil
+}
+
+// LoadCanteenSchedule retrieves the weekly canteen collection roster.
+func (s *Storage) LoadCanteenSchedule() (map[time.Weekday][]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.Query("SELECT weekday, officers_json FROM canteen_schedules ORDER BY weekday ASC;")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[time.Weekday][]string)
+	for rows.Next() {
+		var weekdayInt int
+		var officersJSON string
+		if err := rows.Scan(&weekdayInt, &officersJSON); err != nil {
+			continue
+		}
+		var officers []string
+		if err := json.Unmarshal([]byte(officersJSON), &officers); err == nil {
+			result[time.Weekday(weekdayInt)] = officers
+		}
+	}
+	return result, nil
+}
+
+// GetCanteenOfficers returns the assigned canteen officers for a specific weekday.
+func (s *Storage) GetCanteenOfficers(weekday time.Weekday) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var officersJSON string
+	err := s.db.QueryRow("SELECT officers_json FROM canteen_schedules WHERE weekday = ?", int(weekday)).Scan(&officersJSON)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var officers []string
+	if err := json.Unmarshal([]byte(officersJSON), &officers); err != nil {
+		return nil, err
+	}
+	return officers, nil
 }
 
 // --- Reminder Audit Logs & Prayer Cache ---
