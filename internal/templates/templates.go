@@ -273,6 +273,11 @@ Masjid Al-Wasii - UNILA
 ────────────────────────
 %s
 %s
+🔗 *Catat Setoran di SISEKA:*
+🌐 https://siseka-wasii.vercel.app/
+👤 Username : *bph*
+🔑 Password : *barengbareng*
+────────────────────────
 _Pengingat otomatis dikirim setiap Senin s.d. Jumat pukul 15:00 WIB._`,
 		strings.Join(scheduleLines, "\n"),
 		todaySection,
