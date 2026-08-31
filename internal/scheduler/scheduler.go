@@ -175,8 +175,8 @@ func (s *Scheduler) armDaytimeTimers(now time.Time, pt *api.ParsedPrayerTimes) {
 			continue
 		}
 
-		// Trigger reminder 10 minutes before prayer time
-		reminderTime := p.time.Add(-10 * time.Minute)
+		// Trigger reminder 15 minutes before prayer time
+		reminderTime := p.time.Add(-15 * time.Minute)
 		delay := reminderTime.Sub(now)
 
 		if delay > 0 {
@@ -199,7 +199,7 @@ func (s *Scheduler) armDaytimeTimers(now time.Time, pt *api.ParsedPrayerTimes) {
 }
 
 func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime time.Time, duty matrix.DutyAssignment) {
-	log.Printf("[Scheduler] Sending 10-min reminder for %s...", prayer)
+	log.Printf("[Scheduler] Sending 15-min reminder for %s...", prayer)
 	msg := templates.BuildDaytimePrayerReminder(s.phonebook, prayer, prayerTime, duty)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)

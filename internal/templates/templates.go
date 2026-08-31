@@ -15,7 +15,7 @@ type ReminderMessage struct {
 	MentionedJID []string
 }
 
-// BuildDaytimePrayerReminder formats the 10-minute reminder for Zhuhur, Ashar, Maghrib, Isya.
+// BuildDaytimePrayerReminder formats the 15-minute reminder for Zhuhur, Ashar, Maghrib, Isya.
 func BuildDaytimePrayerReminder(
 	reg *phonebook.Registry,
 	prayer matrix.PrayerName,
@@ -35,7 +35,7 @@ Petugas:
 📢 Adzan : %s
 👳 Imam  : %s
 
-_Waktu masuk ±10 menit lagi. Dimohon kepada petugas untuk bersiap-siap._`,
+_Waktu masuk ±15 menit lagi. Dimohon kepada petugas untuk bersiap-siap._`,
 		strings.ToUpper(string(prayer)),
 		timeStr,
 		adzanTag,
