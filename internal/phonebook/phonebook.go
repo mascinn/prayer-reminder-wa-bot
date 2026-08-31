@@ -72,19 +72,19 @@ type Registry struct {
 	lookup  map[string]Member
 }
 
-// DefaultMembers provides the canonical structure/aliases without hardcoding private phone numbers in Git.
+// DefaultMembers provides example canonical structure without any real member names or phone numbers.
 var DefaultMembers = []Member{
-	{DisplayName: "Fajar", Aliases: []string{"fajar", "fajar aji pangestu"}},
-	{DisplayName: "Iskandar", Aliases: []string{"iskandar"}},
-	{DisplayName: "Ananda", Aliases: []string{"ananda", "nanda", "ananda kusuma"}},
-	{DisplayName: "Arif", Aliases: []string{"arif", "arif hidayat"}},
-	{DisplayName: "Arjuna", Aliases: []string{"arjuna", "juna", "arjuna yulizar mahendra"}},
-	{DisplayName: "Basit", Aliases: []string{"basit", "abdul basit", "basit diwa fakara"}},
-	{DisplayName: "Imam", Aliases: []string{"imam", "imam rifai"}},
-	{DisplayName: "Haris", Aliases: []string{"haris", "dhiki", "diki", "dhiki harisno"}},
-	{DisplayName: "Thoriq", Aliases: []string{"thoriq", "torik", "t", "torik lianda"}},
-	{DisplayName: "Ruzi", Aliases: []string{"ruzi", "ruzi yandi"}},
-	{DisplayName: "Makhasin", Aliases: []string{"makhasin", "khasin"}},
+	{DisplayName: "Ahmad", Aliases: []string{"ahmad"}},
+	{DisplayName: "Zaid", Aliases: []string{"zaid"}},
+	{DisplayName: "Umar", Aliases: []string{"umar"}},
+	{DisplayName: "Bilal", Aliases: []string{"bilal"}},
+	{DisplayName: "Ali", Aliases: []string{"ali"}},
+	{DisplayName: "Usman", Aliases: []string{"usman"}},
+	{DisplayName: "Hamzah", Aliases: []string{"hamzah"}},
+	{DisplayName: "Hasan", Aliases: []string{"hasan"}},
+	{DisplayName: "Husain", Aliases: []string{"husain"}},
+	{DisplayName: "Salman", Aliases: []string{"salman"}},
+	{DisplayName: "Khalid", Aliases: []string{"khalid"}},
 }
 
 // NewRegistryFromMembers creates a Registry from a slice of Members.

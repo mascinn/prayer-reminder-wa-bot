@@ -43,20 +43,20 @@ To ensure **privacy and security** when publishing this repository publicly on G
 
 ---
 
-## 📋 Weekly Duty Matrix
+## 📋 Weekly Duty Matrix (Contoh)
 
-| Day | Subuh (Adzan / Imam) | Zhuhur (Adzan / Imam) | Ashar (Adzan / Imam) | Maghrib (Adzan / Imam) | Isya (Adzan / Imam) |
+| Hari | Subuh (Adzan / Imam) | Zhuhur (Adzan / Imam) | Ashar (Adzan / Imam) | Maghrib (Adzan / Imam) | Isya (Adzan / Imam) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Senin** | Imam / Haris | Ruzi / Basit | Arjuna / Ananda | Ruzi / Ananda | Basit / Iskandar |
-| **Selasa** | Basit / Haris | Arjuna / Ruzi | Makhasin / Fajar | Imam / T | Makhasin / Imam |
-| **Rabu** | Basit / Haris | T / Ruzi | Ruzi / T | Iskandar / Arjuna | Ruzi / Imam |
-| **Kamis** | Ananda / Haris | T / Ruzi | Fajar / Arjuna | Basit / Imam | Fajar / Makhasin |
-| **Jum'at** | Makhasin / Haris | _(Sholat Jum'at)_ | Ananda / Basit | Fajar / Arjuna | Imam / Makhasin |
-| **Sabtu** | Basit / Haris | Fajar / Ananda | Iskandar / Makhasin | Iskandar / Ananda | Imam / Arjuna |
-| **Minggu** | Arjuna / Haris | Iskandar / Fajar | Makhasin / Ananda | Iskandar / Fajar | Fajar / Iskandar |
+| **Senin** | Ahmad / Zaid | Bilal / Umar | Ali / Usman | Hamzah / Hasan | Husain / Salman |
+| **Selasa** | Zaid / Ahmad | Ali / Bilal | Usman / Hamzah | Hasan / Husain | Salman / Ahmad |
+| **Rabu** | Bilal / Ahmad | Umar / Zaid | Ali / Hamzah | Usman / Hasan | Husain / Salman |
+| **Kamis** | Usman / Zaid | Umar / Bilal | Hamzah / Ali | Hasan / Husain | Salman / Ahmad |
+| **Jum'at** | Hamzah / Ahmad | _(Sholat Jum'at)_ | Bilal / Ali | Usman / Hasan | Husain / Salman |
+| **Sabtu** | Hasan / Zaid | Ahmad / Umar | Ali / Hamzah | Bilal / Usman | Salman / Ahmad |
+| **Minggu** | Husain / Ahmad | Zaid / Bilal | Umar / Ali | Hamzah / Hasan | Usman / Salman |
 
-### 🎙️ Subuh Kultum Round-Robin Queue (10 Members)
-1. **Iskandar** ➔ 2. **Haris** ➔ 3. **Thoriq** ➔ 4. **Ruzi** ➔ 5. **Fajar** ➔ 6. **Ananda** ➔ 7. **Makhasin** ➔ 8. **Arjuna** ➔ 9. **Imam** ➔ 10. **Basit** ➔ _(loops back to 1)_.
+### 🎙️ Subuh Kultum Round-Robin Queue
+Urutan penceramah kultum Subuh berputar bergantian secara otomatis (*round-robin*) dan tersimpan permanen di database.
 
 ---
 

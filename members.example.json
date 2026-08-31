@@ -1,57 +1,57 @@
 [
   {
-    "display_name": "Fajar",
-    "phone": "6285700000001",
-    "aliases": ["fajar", "fajar aji pangestu"]
+    "display_name": "Ahmad",
+    "phone": "6281100000001",
+    "aliases": ["ahmad", "ahmad testing"]
   },
   {
-    "display_name": "Iskandar",
-    "phone": "6285700000002",
-    "aliases": ["iskandar"]
+    "display_name": "Zaid",
+    "phone": "6281100000002",
+    "aliases": ["zaid"]
   },
   {
-    "display_name": "Ananda",
-    "phone": "6285100000003",
-    "aliases": ["ananda", "nanda", "ananda kusuma"]
+    "display_name": "Bilal",
+    "phone": "6281100000003",
+    "aliases": ["bilal"]
   },
   {
-    "display_name": "Arif",
-    "phone": "6283100000004",
-    "aliases": ["arif", "arif hidayat"]
+    "display_name": "Umar",
+    "phone": "6281100000004",
+    "aliases": ["umar"]
   },
   {
-    "display_name": "Arjuna",
-    "phone": "6285200000005",
-    "aliases": ["arjuna", "juna", "arjuna yulizar mahendra"]
+    "display_name": "Ali",
+    "phone": "6281100000005",
+    "aliases": ["ali"]
   },
   {
-    "display_name": "Basit",
-    "phone": "6285700000006",
-    "aliases": ["basit", "abdul basit", "basit diwa fakara"]
+    "display_name": "Usman",
+    "phone": "6281100000006",
+    "aliases": ["usman"]
   },
   {
-    "display_name": "Imam",
-    "phone": "6288200000007",
-    "aliases": ["imam", "imam rifai"]
+    "display_name": "Hamzah",
+    "phone": "6281100000007",
+    "aliases": ["hamzah"]
   },
   {
-    "display_name": "Haris",
-    "phone": "6282300000008",
-    "aliases": ["haris", "dhiki", "diki", "dhiki harisno"]
+    "display_name": "Hasan",
+    "phone": "6281100000008",
+    "aliases": ["hasan"]
   },
   {
-    "display_name": "Thoriq",
-    "phone": "6285600000009",
-    "aliases": ["thoriq", "torik", "t", "torik lianda"]
+    "display_name": "Husain",
+    "phone": "6281100000009",
+    "aliases": ["husain"]
   },
   {
-    "display_name": "Ruzi",
-    "phones": ["6282200000010", "6285700000010"],
-    "aliases": ["ruzi", "ruzi yandi"]
+    "display_name": "Salman",
+    "phones": ["6281100000010", "6281100000011"],
+    "aliases": ["salman", "salman al farisi"]
   },
   {
-    "display_name": "Makhasin",
-    "phone": "6285700000011",
-    "aliases": ["makhasin", "khasin"]
+    "display_name": "Khalid",
+    "phone": "6281100000012",
+    "aliases": ["khalid"]
   }
 ]

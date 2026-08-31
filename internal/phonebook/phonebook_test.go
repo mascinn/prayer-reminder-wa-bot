@@ -5,17 +5,17 @@ import (
 )
 
 var sampleTestMembers = []Member{
-	{DisplayName: "Fajar", Phone: "6285768971813", Aliases: []string{"fajar"}},
-	{DisplayName: "Iskandar", Phone: "6285758426987", Aliases: []string{"iskandar"}},
-	{DisplayName: "Ananda", Phone: "6285180530165", Aliases: []string{"ananda", "nanda"}},
-	{DisplayName: "Arif", Phone: "6283181878854", Aliases: []string{"arif"}},
-	{DisplayName: "Arjuna", Phone: "6285268988283", Aliases: []string{"arjuna", "juna"}},
-	{DisplayName: "Basit", Phone: "6285766840697", Aliases: []string{"basit", "abdul basit"}},
-	{DisplayName: "Imam", Phone: "6288274018823", Aliases: []string{"imam"}},
-	{DisplayName: "Haris", Phone: "6282367759870", Aliases: []string{"haris", "dhiki", "diki"}},
-	{DisplayName: "Thoriq", Phone: "6285664249480", Aliases: []string{"thoriq", "torik", "t"}},
-	{DisplayName: "Ruzi", Phone: "6282298399181", Aliases: []string{"ruzi"}},
-	{DisplayName: "Makhasin", Phone: "6285758970652", Aliases: []string{"makhasin", "khasin"}},
+	{DisplayName: "Ahmad", Phone: "6281100000001", Aliases: []string{"ahmad", "ahmad testing"}},
+	{DisplayName: "Zaid", Phone: "6281100000002", Aliases: []string{"zaid"}},
+	{DisplayName: "Umar", Phone: "6281100000003", Aliases: []string{"umar"}},
+	{DisplayName: "Bilal", Phone: "6281100000004", Aliases: []string{"bilal"}},
+	{DisplayName: "Ali", Phone: "6281100000005", Aliases: []string{"ali"}},
+	{DisplayName: "Usman", Phone: "6281100000006", Aliases: []string{"usman"}},
+	{DisplayName: "Hamzah", Phone: "6281100000007", Aliases: []string{"hamzah"}},
+	{DisplayName: "Hasan", Phone: "6281100000008", Aliases: []string{"hasan"}},
+	{DisplayName: "Husain", Phone: "6281100000009", Aliases: []string{"husain"}},
+	{DisplayName: "Salman", Phone: "6281100000010", Aliases: []string{"salman"}},
+	{DisplayName: "Khalid", Phone: "6281100000011", Aliases: []string{"khalid"}},
 }
 
 func TestPhonebookMappings(t *testing.T) {
@@ -28,27 +28,14 @@ func TestPhonebookMappings(t *testing.T) {
 		expectedJID  string
 		expectedTag  string
 	}{
-		{"Fajar", "Fajar", "6285768971813", "6285768971813@s.whatsapp.net", "@6285768971813"},
-		{"fajar", "Fajar", "6285768971813", "6285768971813@s.whatsapp.net", "@6285768971813"},
-		{"Iskandar", "Iskandar", "6285758426987", "6285758426987@s.whatsapp.net", "@6285758426987"},
-		{"Ananda", "Ananda", "6285180530165", "6285180530165@s.whatsapp.net", "@6285180530165"},
-		{"nanda", "Ananda", "6285180530165", "6285180530165@s.whatsapp.net", "@6285180530165"},
-		{"Arif", "Arif", "6283181878854", "6283181878854@s.whatsapp.net", "@6283181878854"},
-		{"Arjuna", "Arjuna", "6285268988283", "6285268988283@s.whatsapp.net", "@6285268988283"},
-		{"juna", "Arjuna", "6285268988283", "6285268988283@s.whatsapp.net", "@6285268988283"},
-		{"Basit", "Basit", "6285766840697", "6285766840697@s.whatsapp.net", "@6285766840697"},
-		{"abdul basit", "Basit", "6285766840697", "6285766840697@s.whatsapp.net", "@6285766840697"},
-		{"Imam", "Imam", "6288274018823", "6288274018823@s.whatsapp.net", "@6288274018823"},
-		{"Haris", "Haris", "6282367759870", "6282367759870@s.whatsapp.net", "@6282367759870"},
-		{"Dhiki", "Haris", "6282367759870", "6282367759870@s.whatsapp.net", "@6282367759870"},
-		{"diki", "Haris", "6282367759870", "6282367759870@s.whatsapp.net", "@6282367759870"},
-		{"Thoriq", "Thoriq", "6285664249480", "6285664249480@s.whatsapp.net", "@6285664249480"},
-		{"Torik", "Thoriq", "6285664249480", "6285664249480@s.whatsapp.net", "@6285664249480"},
-		{"T", "Thoriq", "6285664249480", "6285664249480@s.whatsapp.net", "@6285664249480"},
-		{"t", "Thoriq", "6285664249480", "6285664249480@s.whatsapp.net", "@6285664249480"},
-		{"Ruzi", "Ruzi", "6282298399181", "6282298399181@s.whatsapp.net", "@6282298399181"},
-		{"Makhasin", "Makhasin", "6285758970652", "6285758970652@s.whatsapp.net", "@6285758970652"},
-		{"khasin", "Makhasin", "6285758970652", "6285758970652@s.whatsapp.net", "@6285758970652"},
+		{"Ahmad", "Ahmad", "6281100000001", "6281100000001@s.whatsapp.net", "@6281100000001"},
+		{"ahmad", "Ahmad", "6281100000001", "6281100000001@s.whatsapp.net", "@6281100000001"},
+		{"ahmad testing", "Ahmad", "6281100000001", "6281100000001@s.whatsapp.net", "@6281100000001"},
+		{"Zaid", "Zaid", "6281100000002", "6281100000002@s.whatsapp.net", "@6281100000002"},
+		{"Umar", "Umar", "6281100000003", "6281100000003@s.whatsapp.net", "@6281100000003"},
+		{"Bilal", "Bilal", "6281100000004", "6281100000004@s.whatsapp.net", "@6281100000004"},
+		{"Ali", "Ali", "6281100000005", "6281100000005@s.whatsapp.net", "@6281100000005"},
+		{"Usman", "Usman", "6281100000006", "6281100000006@s.whatsapp.net", "@6281100000006"},
 	}
 
 	for _, tc := range tests {
@@ -73,10 +60,10 @@ func TestPhonebookMappings(t *testing.T) {
 }
 
 func TestLoadRegistryFromJSON(t *testing.T) {
-	jsonStr := `[{"display_name":"Ahmad","phone":"6289999999999","aliases":["ahmad"]}]`
+	jsonStr := `[{"display_name":"Testing","phone":"6289999999999","aliases":["testing"]}]`
 	reg := LoadRegistry("", jsonStr)
 
-	m, ok := reg.Find("ahmad")
+	m, ok := reg.Find("testing")
 	if !ok {
 		t.Fatal("Failed to find member from JSON string")
 	}
@@ -101,25 +88,25 @@ func TestUnknownMember(t *testing.T) {
 func TestMultiplePhones(t *testing.T) {
 	members := []Member{
 		{
-			DisplayName: "Ruzi",
-			Phones:      []string{"6282298399181", "6285711024192"},
-			Aliases:     []string{"ruzi", "ruzi yandi"},
+			DisplayName: "Ahmad",
+			Phones:      []string{"6281100000001", "6281100000002"},
+			Aliases:     []string{"ahmad", "ahmad test"},
 		},
 	}
 	reg := NewRegistryFromMembers(members)
-	m, ok := reg.Find("ruzi yandi")
+	m, ok := reg.Find("ahmad test")
 	if !ok {
-		t.Fatal("Failed to find ruzi yandi")
+		t.Fatal("Failed to find ahmad test")
 	}
 	jids := m.WhatsAppJIDs()
 	if len(jids) != 2 {
 		t.Fatalf("len(jids) = %d; want 2", len(jids))
 	}
-	if jids[0] != "6282298399181@s.whatsapp.net" || jids[1] != "6285711024192@s.whatsapp.net" {
+	if jids[0] != "6281100000001@s.whatsapp.net" || jids[1] != "6281100000002@s.whatsapp.net" {
 		t.Errorf("Unexpected JIDs: %v", jids)
 	}
-	tag := reg.FormatMention("ruzi")
-	if tag != "@6282298399181 @6285711024192" {
-		t.Errorf("FormatMention = %q; want '@6282298399181 @6285711024192'", tag)
+	tag := reg.FormatMention("ahmad")
+	if tag != "@6281100000001 @6281100000002" {
+		t.Errorf("FormatMention = %q; want '@6281100000001 @6281100000002'", tag)
 	}
 }

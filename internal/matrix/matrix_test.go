@@ -23,59 +23,59 @@ func TestWeeklyMatrixDuties(t *testing.T) {
 	}{
 		{
 			weekday: time.Monday, dayName: "Senin",
-			subuhAdz: "Imam", subuhImam: "Haris",
-			zhuhurAdz: "Ruzi", zhuhurImam: "Basit", zhuhurSkip: false,
-			asharAdz: "Arjuna", asharImam: "Ananda",
-			maghribAdz: "Ruzi", maghribImm: "Ananda",
-			isyaAdz: "Basit", isyaImam: "Iskandar",
+			subuhAdz: "Ahmad", subuhImam: "Zaid",
+			zhuhurAdz: "Bilal", zhuhurImam: "Umar", zhuhurSkip: false,
+			asharAdz: "Ali", asharImam: "Usman",
+			maghribAdz: "Hamzah", maghribImm: "Hasan",
+			isyaAdz: "Husain", isyaImam: "Salman",
 		},
 		{
 			weekday: time.Tuesday, dayName: "Selasa",
-			subuhAdz: "Basit", subuhImam: "Haris",
-			zhuhurAdz: "Arjuna", zhuhurImam: "Ruzi", zhuhurSkip: false,
-			asharAdz: "Makhasin", asharImam: "Fajar",
-			maghribAdz: "Imam", maghribImm: "T",
-			isyaAdz: "Makhasin", isyaImam: "Imam",
+			subuhAdz: "Zaid", subuhImam: "Ahmad",
+			zhuhurAdz: "Ali", zhuhurImam: "Bilal", zhuhurSkip: false,
+			asharAdz: "Usman", asharImam: "Hamzah",
+			maghribAdz: "Hasan", maghribImm: "Husain",
+			isyaAdz: "Salman", isyaImam: "Ahmad",
 		},
 		{
 			weekday: time.Wednesday, dayName: "Rabu",
-			subuhAdz: "Basit", subuhImam: "Haris",
-			zhuhurAdz: "T", zhuhurImam: "Ruzi", zhuhurSkip: false,
-			asharAdz: "Ruzi", asharImam: "T",
-			maghribAdz: "Iskandar", maghribImm: "Arjuna",
-			isyaAdz: "Ruzi", isyaImam: "Imam",
+			subuhAdz: "Bilal", subuhImam: "Ahmad",
+			zhuhurAdz: "Umar", zhuhurImam: "Zaid", zhuhurSkip: false,
+			asharAdz: "Ali", asharImam: "Hamzah",
+			maghribAdz: "Usman", maghribImm: "Hasan",
+			isyaAdz: "Husain", isyaImam: "Salman",
 		},
 		{
 			weekday: time.Thursday, dayName: "Kamis",
-			subuhAdz: "Ananda", subuhImam: "Haris",
-			zhuhurAdz: "T", zhuhurImam: "Ruzi", zhuhurSkip: false,
-			asharAdz: "Fajar", asharImam: "Arjuna",
-			maghribAdz: "Basit", maghribImm: "Imam",
-			isyaAdz: "Fajar", isyaImam: "Makhasin",
+			subuhAdz: "Usman", subuhImam: "Zaid",
+			zhuhurAdz: "Umar", zhuhurImam: "Bilal", zhuhurSkip: false,
+			asharAdz: "Hamzah", asharImam: "Ali",
+			maghribAdz: "Hasan", maghribImm: "Husain",
+			isyaAdz: "Salman", isyaImam: "Ahmad",
 		},
 		{
 			weekday: time.Friday, dayName: "Jumat",
-			subuhAdz: "Makhasin", subuhImam: "Haris",
+			subuhAdz: "Hamzah", subuhImam: "Ahmad",
 			zhuhurAdz: "", zhuhurImam: "", zhuhurSkip: true, // Friday Zhuhur is skipped
-			asharAdz: "Ananda", asharImam: "Basit",
-			maghribAdz: "Fajar", maghribImm: "Arjuna",
-			isyaAdz: "Imam", isyaImam: "Makhasin",
+			asharAdz: "Bilal", asharImam: "Ali",
+			maghribAdz: "Usman", maghribImm: "Hasan",
+			isyaAdz: "Husain", isyaImam: "Salman",
 		},
 		{
 			weekday: time.Saturday, dayName: "Sabtu",
-			subuhAdz: "Basit", subuhImam: "Haris",
-			zhuhurAdz: "Fajar", zhuhurImam: "Ananda", zhuhurSkip: false,
-			asharAdz: "Iskandar", asharImam: "Makhasin",
-			maghribAdz: "Iskandar", maghribImm: "Ananda",
-			isyaAdz: "Imam", isyaImam: "Arjuna",
+			subuhAdz: "Hasan", subuhImam: "Zaid",
+			zhuhurAdz: "Ahmad", zhuhurImam: "Umar", zhuhurSkip: false,
+			asharAdz: "Ali", asharImam: "Hamzah",
+			maghribAdz: "Bilal", maghribImm: "Usman",
+			isyaAdz: "Salman", isyaImam: "Ahmad",
 		},
 		{
 			weekday: time.Sunday, dayName: "Minggu",
-			subuhAdz: "Arjuna", subuhImam: "Haris",
-			zhuhurAdz: "Iskandar", zhuhurImam: "Fajar", zhuhurSkip: false,
-			asharAdz: "Makhasin", asharImam: "Ananda",
-			maghribAdz: "Iskandar", maghribImm: "Fajar",
-			isyaAdz: "Fajar", isyaImam: "Iskandar",
+			subuhAdz: "Husain", subuhImam: "Ahmad",
+			zhuhurAdz: "Zaid", zhuhurImam: "Bilal", zhuhurSkip: false,
+			asharAdz: "Umar", asharImam: "Ali",
+			maghribAdz: "Hamzah", maghribImm: "Hasan",
+			isyaAdz: "Usman", isyaImam: "Salman",
 		},
 	}
 
@@ -124,16 +124,16 @@ func TestWeeklyMatrixDuties(t *testing.T) {
 
 func TestKultumRoundRobinQueue(t *testing.T) {
 	expectedSpeakers := []string{
-		"Iskandar", // 1 (index 0)
-		"Haris",    // 2 (index 1)
-		"Thoriq",   // 3 (index 2)
-		"Ruzi",     // 4 (index 3)
-		"Fajar",    // 5 (index 4)
-		"Ananda",   // 6 (index 5)
-		"Makhasin", // 7 (index 6)
-		"Arjuna",   // 8 (index 7)
-		"Imam",     // 9 (index 8)
-		"Basit",    // 10 (index 9)
+		"Ahmad",  // 1 (index 0)
+		"Zaid",   // 2 (index 1)
+		"Bilal",  // 3 (index 2)
+		"Umar",   // 4 (index 3)
+		"Ali",    // 5 (index 4)
+		"Usman",  // 6 (index 5)
+		"Hamzah", // 7 (index 6)
+		"Hasan",  // 8 (index 7)
+		"Husain", // 9 (index 8)
+		"Salman", // 10 (index 9)
 	}
 
 	if KultumQueueLen() != 10 {
@@ -148,11 +148,11 @@ func TestKultumRoundRobinQueue(t *testing.T) {
 	}
 
 	// Test wrapping back to 1
-	if GetKultumSpeaker(10) != "Iskandar" {
-		t.Errorf("Speaker at index 10 = %q; want 'Iskandar' (wrapped)", GetKultumSpeaker(10))
+	if GetKultumSpeaker(10) != "Ahmad" {
+		t.Errorf("Speaker at index 10 = %q; want 'Ahmad' (wrapped)", GetKultumSpeaker(10))
 	}
-	if GetKultumSpeaker(11) != "Haris" {
-		t.Errorf("Speaker at index 11 = %q; want 'Haris' (wrapped)", GetKultumSpeaker(11))
+	if GetKultumSpeaker(11) != "Zaid" {
+		t.Errorf("Speaker at index 11 = %q; want 'Zaid' (wrapped)", GetKultumSpeaker(11))
 	}
 
 	// Test NextKultumIndex

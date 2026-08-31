@@ -10,11 +10,11 @@ import (
 )
 
 var testMembers = []phonebook.Member{
-	{DisplayName: "Arjuna", Phone: "6285268988283", Aliases: []string{"arjuna", "juna"}},
-	{DisplayName: "Ananda", Phone: "6285180530165", Aliases: []string{"ananda", "nanda"}},
-	{DisplayName: "Basit", Phone: "6285766840697", Aliases: []string{"basit"}},
-	{DisplayName: "Haris", Phone: "6282367759870", Aliases: []string{"haris"}},
-	{DisplayName: "Thoriq", Phone: "6285664249480", Aliases: []string{"thoriq"}},
+	{DisplayName: "Ahmad", Phone: "6281100000001", Aliases: []string{"ahmad"}},
+	{DisplayName: "Zaid", Phone: "6281100000002", Aliases: []string{"zaid"}},
+	{DisplayName: "Bilal", Phone: "6281100000003", Aliases: []string{"bilal"}},
+	{DisplayName: "Umar", Phone: "6281100000004", Aliases: []string{"umar"}},
+	{DisplayName: "Ali", Phone: "6281100000005", Aliases: []string{"ali"}},
 }
 
 func TestBuildDaytimePrayerReminder(t *testing.T) {
@@ -23,8 +23,8 @@ func TestBuildDaytimePrayerReminder(t *testing.T) {
 	prayerTime := time.Date(2026, 8, 31, 15, 20, 0, 0, loc) // Ashar
 
 	duty := matrix.DutyAssignment{
-		Adzan: "Arjuna",
-		Imam:  "Ananda",
+		Adzan: "Ahmad",
+		Imam:  "Zaid",
 	}
 
 	msg := BuildDaytimePrayerReminder(reg, matrix.PrayerAshar, prayerTime, duty)
@@ -33,17 +33,17 @@ func TestBuildDaytimePrayerReminder(t *testing.T) {
 	if !strings.Contains(msg.Text, "PENGINGAT SHOLAT ASHAR") {
 		t.Errorf("Message missing prayer title: %s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "@6285268988283 (Arjuna)") {
-		t.Errorf("Message missing Arjuna mention tag: %s", msg.Text)
+	if !strings.Contains(msg.Text, "@6281100000001 (Ahmad)") {
+		t.Errorf("Message missing Ahmad mention tag: %s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "@6285180530165 (Ananda)") {
-		t.Errorf("Message missing Ananda mention tag: %s", msg.Text)
+	if !strings.Contains(msg.Text, "@6281100000002 (Zaid)") {
+		t.Errorf("Message missing Zaid mention tag: %s", msg.Text)
 	}
 
 	// Check MentionedJID slice
 	expectedJIDs := []string{
-		"6285268988283@s.whatsapp.net",
-		"6285180530165@s.whatsapp.net",
+		"6281100000001@s.whatsapp.net",
+		"6281100000002@s.whatsapp.net",
 	}
 
 	if len(msg.MentionedJID) != len(expectedJIDs) {
@@ -62,24 +62,24 @@ func TestBuildSubuhKultumReminder(t *testing.T) {
 	tomorrow := time.Date(2026, 9, 1, 0, 0, 0, 0, loc)
 
 	duty := matrix.DutyAssignment{
-		Adzan: "Basit",
-		Imam:  "Haris",
+		Adzan: "Bilal",
+		Imam:  "Umar",
 	}
-	speaker := "Thoriq"
+	speaker := "Ali"
 
 	msg := BuildSubuhKultumReminder(reg, tomorrow, "04:44", duty, speaker)
 
 	if !strings.Contains(msg.Text, "PENGINGAT SUBUH & KULTUM") {
 		t.Errorf("Message missing title: %s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "@6285766840697 (Basit)") {
-		t.Errorf("Message missing Basit tag: %s", msg.Text)
+	if !strings.Contains(msg.Text, "@6281100000003 (Bilal)") {
+		t.Errorf("Message missing Bilal tag: %s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "@6282367759870 (Haris)") {
-		t.Errorf("Message missing Haris tag: %s", msg.Text)
+	if !strings.Contains(msg.Text, "@6281100000004 (Umar)") {
+		t.Errorf("Message missing Umar tag: %s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "@6285664249480 (Thoriq)") {
-		t.Errorf("Message missing Thoriq tag: %s", msg.Text)
+	if !strings.Contains(msg.Text, "@6281100000005 (Ali)") {
+		t.Errorf("Message missing Ali tag: %s", msg.Text)
 	}
 
 	if len(msg.MentionedJID) != 3 {
