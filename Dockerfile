@@ -35,9 +35,7 @@ ENV DB_PATH=/data/bot.db
 ENV TIMEZONE=Asia/Jakarta
 ENV ENABLE_JUMAT_REMINDER=false
 ENV CITY_ID=1014
-ENV LOG_LEVEL=INFO
-
-# Fly.io persistent volume mount point
-VOLUME ["/data"]
+# Expose HTTP health check / status port
+EXPOSE 7860
 
 ENTRYPOINT ["/app/remind-bot"]
