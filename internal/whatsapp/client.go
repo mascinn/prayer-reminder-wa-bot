@@ -35,8 +35,11 @@ type Bot struct {
 	storage   *storage.Storage
 	phonebook *phonebook.Registry
 
-	commands map[string]CommandHandlerFunc
-	cmdMu    sync.RWMutex
+	commands  map[string]CommandHandlerFunc
+	cmdMu     sync.RWMutex
+
+	qrCodeStr string
+	qrMu      sync.RWMutex
 
 	isConnected bool
 	isReady     bool
@@ -78,6 +81,18 @@ func NewBot(cfg *config.Config, storage *storage.Storage, reg *phonebook.Registr
 	return bot, nil
 }
 
+// GetLatestQR returns the current live QR code string.
+func (b *Bot) GetLatestQR() string {
+	b.qrMu.RLock()
+	defer b.qrMu.RUnlock()
+	return b.qrCodeStr
+}
+
+// IsLoggedIn returns true if a paired WhatsApp session exists.
+func (b *Bot) IsLoggedIn() bool {
+	return b.client != nil && b.client.Store.ID != nil
+}
+
 // RegisterCommand registers a bot command handler (e.g. "ping", "jadwal", "jid").
 func (b *Bot) RegisterCommand(cmd string, handler CommandHandlerFunc) {
 	b.cmdMu.Lock()
@@ -101,6 +116,10 @@ func (b *Bot) Start(ctx context.Context) error {
 		go func() {
 			for evt := range qrChan {
 				if evt.Event == "code" {
+					b.qrMu.Lock()
+					b.qrCodeStr = evt.Code
+					b.qrMu.Unlock()
+
 					fmt.Println()
 					fmt.Println("=======================================================")
 					fmt.Println("  Scan the QR code below with WhatsApp to pair:")
@@ -108,6 +127,11 @@ func (b *Bot) Start(ctx context.Context) error {
 					qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 					fmt.Println("=======================================================")
 					fmt.Println()
+				} else if evt.Event == "success" {
+					b.qrMu.Lock()
+					b.qrCodeStr = ""
+					b.qrMu.Unlock()
+					log.Println("[WhatsApp] QR pairing successful! Logged in.")
 				} else {
 					log.Printf("[WhatsApp] QR Channel Event: %s", evt.Event)
 				}
