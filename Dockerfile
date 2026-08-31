@@ -33,9 +33,9 @@ COPY --from=builder /app/remind-bot /app/remind-bot
 # Set default runtime environment
 ENV DB_PATH=/data/bot.db
 ENV TIMEZONE=Asia/Jakarta
-ENV ENABLE_JUMAT_REMINDER=false
-ENV CITY_ID=1014
-# Expose HTTP health check / status port
-EXPOSE 7860
+ENV LOG_LEVEL=INFO
+
+# Expose HTTP port for Render / Docker health checks
+EXPOSE 8080 10000
 
 ENTRYPOINT ["/app/remind-bot"]

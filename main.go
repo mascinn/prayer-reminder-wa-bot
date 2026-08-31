@@ -83,10 +83,10 @@ func main() {
 		log.Fatalf("[Main] WhatsApp client connection error: %v", err)
 	}
 
-	// 7. Initialize lightweight HTTP status dashboard (Port 7860 for Hugging Face Spaces / $PORT)
+	// 7. Initialize lightweight HTTP status dashboard (Render reads $PORT, default 8080)
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "7860"
+		port = "8080"
 	}
 
 	httpServer := &http.Server{
