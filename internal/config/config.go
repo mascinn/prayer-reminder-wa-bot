@@ -23,6 +23,8 @@ type Config struct {
 	LogLevel            string
 	MembersFile         string
 	MembersJSON         string
+	ScheduleFile        string
+	ScheduleJSON        string
 }
 
 // LoadConfig reads configuration from .env file (if present) and environment variables.
@@ -70,6 +72,8 @@ func LoadConfig() (*Config, error) {
 		LogLevel:            getEnv("LOG_LEVEL", "INFO"),
 		MembersFile:         getEnv("MEMBERS_FILE", "./data/members.json"),
 		MembersJSON:         getEnv("MEMBERS_JSON", ""),
+		ScheduleFile:        getEnv("SCHEDULE_FILE", "./data/schedule.json"),
+		ScheduleJSON:        getEnv("SCHEDULE_JSON", ""),
 	}
 
 	return cfg, nil

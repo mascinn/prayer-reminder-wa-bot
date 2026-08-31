@@ -1,0 +1,72 @@
+{
+  "kultum_queue": [
+    "Iskandar",
+    "Haris",
+    "Thoriq",
+    "Ruzi",
+    "Fajar",
+    "Ananda",
+    "Makhasin",
+    "Arjuna",
+    "Imam",
+    "Basit"
+  ],
+  "weekly_matrix": {
+    "monday": {
+      "day_name": "Senin",
+      "subuh": { "adzan": "Imam", "imam": "Haris" },
+      "zhuhur": { "adzan": "Ruzi", "imam": "Basit" },
+      "ashar": { "adzan": "Arjuna", "imam": "Ananda" },
+      "maghrib": { "adzan": "Ruzi", "imam": "Ananda" },
+      "isya": { "adzan": "Basit", "imam": "Iskandar" }
+    },
+    "tuesday": {
+      "day_name": "Selasa",
+      "subuh": { "adzan": "Basit", "imam": "Haris" },
+      "zhuhur": { "adzan": "Arjuna", "imam": "Ruzi" },
+      "ashar": { "adzan": "Makhasin", "imam": "Fajar" },
+      "maghrib": { "adzan": "Imam", "imam": "T" },
+      "isya": { "adzan": "Makhasin", "imam": "Imam" }
+    },
+    "wednesday": {
+      "day_name": "Rabu",
+      "subuh": { "adzan": "Basit", "imam": "Haris" },
+      "zhuhur": { "adzan": "T", "imam": "Ruzi" },
+      "ashar": { "adzan": "Ruzi", "imam": "T" },
+      "maghrib": { "adzan": "Iskandar", "imam": "Arjuna" },
+      "isya": { "adzan": "Ruzi", "imam": "Imam" }
+    },
+    "thursday": {
+      "day_name": "Kamis",
+      "subuh": { "adzan": "Ananda", "imam": "Haris" },
+      "zhuhur": { "adzan": "T", "imam": "Ruzi" },
+      "ashar": { "adzan": "Fajar", "imam": "Arjuna" },
+      "maghrib": { "adzan": "Basit", "imam": "Imam" },
+      "isya": { "adzan": "Fajar", "imam": "Makhasin" }
+    },
+    "friday": {
+      "day_name": "Jumat",
+      "subuh": { "adzan": "Makhasin", "imam": "Haris" },
+      "zhuhur": { "skipped": true },
+      "ashar": { "adzan": "Ananda", "imam": "Basit" },
+      "maghrib": { "adzan": "Fajar", "imam": "Arjuna" },
+      "isya": { "adzan": "Imam", "imam": "Makhasin" }
+    },
+    "saturday": {
+      "day_name": "Sabtu",
+      "subuh": { "adzan": "Basit", "imam": "Haris" },
+      "zhuhur": { "adzan": "Fajar", "imam": "Ananda" },
+      "ashar": { "adzan": "Iskandar", "imam": "Makhasin" },
+      "maghrib": { "adzan": "Iskandar", "imam": "Ananda" },
+      "isya": { "adzan": "Imam", "imam": "Arjuna" }
+    },
+    "sunday": {
+      "day_name": "Minggu",
+      "subuh": { "adzan": "Arjuna", "imam": "Haris" },
+      "zhuhur": { "adzan": "Iskandar", "imam": "Fajar" },
+      "ashar": { "adzan": "Makhasin", "imam": "Ananda" },
+      "maghrib": { "adzan": "Iskandar", "imam": "Fajar" },
+      "isya": { "adzan": "Fajar", "imam": "Iskandar" }
+    }
+  }
+}

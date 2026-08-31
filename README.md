@@ -35,10 +35,10 @@
 ## 🔒 Privacy & Public GitHub Repository Setup
 
 To ensure **privacy and security** when publishing this repository publicly on GitHub:
-* **Private Data Excluded from Git:** File `bot.db` (sesi WhatsApp login), `.env`, dan `data/members.json` (daftar nomor HP asli) sudah otomatis dikecualikan oleh `.gitignore`.
-* **Template Anggota:** Tersedia `members.example.json` sebagai contoh format.
-* **Di Komputer Lokal:** Letakkan file `members.json` di dalam folder `data/members.json`.
-* **Di Fly.io:** Anda bisa mengatur nomor HP via Fly Secrets `MEMBERS_JSON` atau menaruh file `members.json` di persistent volume `/data`.
+* **Private Data Excluded from Git:** File `bot.db` (sesi WhatsApp login), `.env`, `data/members.json` (daftar nomor HP asli), dan `data/schedule.json` (jadwal lokal) sudah otomatis dikecualikan oleh `.gitignore`.
+* **Template Konfigurasi Publik:** Tersedia `members.example.json` dan `schedule.example.json` sebagai contoh format.
+* **Di Komputer Lokal:** File data berada di `data/members.json` dan `data/schedule.json`.
+* **Di Fly.io:** Anda bisa mengatur konfigurasi via Fly Secrets (`MEMBERS_JSON`, `SCHEDULE_JSON`) atau menaruh file di persistent volume `/data`.
 
 ---
 

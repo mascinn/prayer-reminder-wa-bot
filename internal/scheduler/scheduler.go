@@ -225,7 +225,7 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 	subuhDuty := tomorrowSchedule.Subuh
 
 	// Atomically get and advance Kultum speaker index
-	usedIdx, err := s.storage.AdvanceKultumIndex(len(matrix.KultumQueue))
+	usedIdx, err := s.storage.AdvanceKultumIndex(matrix.KultumQueueLen())
 	if err != nil {
 		log.Printf("[Scheduler] Error advancing kultum index: %v, using default index 0", err)
 		usedIdx = 0
@@ -318,7 +318,7 @@ func (s *Scheduler) registerCommands() {
 		var sb strings.Builder
 		sb.WriteString("🎙️ *ROTASI KULTUM SUBUH (ROUND-ROBIN)*\n")
 		sb.WriteString("Masjid Al-Wasii - UNILA\n────────────────────────\n")
-		for i, name := range matrix.KultumQueue {
+		for i, name := range matrix.KultumQueue() {
 			marker := "  "
 			if i == currentIdx {
 				marker = "👉 "
@@ -341,7 +341,7 @@ func (s *Scheduler) registerCommands() {
 		targetIdx := -1
 
 		// Check if it's a number 1-10
-		for i, name := range matrix.KultumQueue {
+		for i, name := range matrix.KultumQueue() {
 			numStr := fmt.Sprintf("%d", i+1)
 			if arg == numStr || strings.ToLower(name) == arg {
 				targetIdx = i

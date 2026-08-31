@@ -39,9 +39,12 @@ func main() {
 	log.Printf("[Main] Friday Reminder Enabled: %t", cfg.EnableJumatReminder)
 	log.Printf("[Main] Kemenag City ID: %s (Kota Bandar Lampung / Rajabasa / UNILA)", cfg.CityID)
 
-	// 2. Initialize Phonebook registry
+	// 2. Initialize Phonebook registry & Duty Matrix
 	reg := phonebook.LoadRegistry(cfg.MembersFile, cfg.MembersJSON)
 	log.Printf("[Main] Loaded %d registered community members into phonebook.", len(reg.GetAllMembers()))
+
+	matrixCfg := matrix.LoadSchedule(cfg.ScheduleFile, cfg.ScheduleJSON)
+	log.Printf("[Main] Loaded duty matrix with %d kultum rotation speakers.", matrixCfg.KultumQueueLen())
 
 	// 3. Initialize SQLite state & auth storage
 	store, err := storage.NewStorage(cfg.DBPath)
@@ -55,7 +58,7 @@ func main() {
 		log.Printf("[Main] Warning reading kultum index: %v", err)
 	}
 	log.Printf("[Main] Current Kultum Speaker: %s (Index: %d of %d)",
-		matrix.GetKultumSpeaker(kultumIdx), kultumIdx+1, len(matrix.KultumQueue))
+		matrix.GetKultumSpeaker(kultumIdx), kultumIdx+1, matrix.KultumQueueLen())
 
 	// 4. Initialize WhatsApp bot client
 	bot, err := whatsapp.NewBot(cfg, store, reg)

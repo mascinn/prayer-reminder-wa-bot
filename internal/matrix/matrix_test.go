@@ -136,8 +136,8 @@ func TestKultumRoundRobinQueue(t *testing.T) {
 		"Basit",    // 10 (index 9)
 	}
 
-	if len(KultumQueue) != 10 {
-		t.Fatalf("KultumQueue length = %d; want 10", len(KultumQueue))
+	if KultumQueueLen() != 10 {
+		t.Fatalf("KultumQueue length = %d; want 10", KultumQueueLen())
 	}
 
 	for i, expected := range expectedSpeakers {
@@ -184,5 +184,28 @@ func TestPrayerNormalization(t *testing.T) {
 		if res != tc.expected {
 			t.Errorf("NormalizePrayerName(%q) = %v; want %v", tc.input, res, tc.expected)
 		}
+	}
+}
+
+func TestLoadScheduleFromJSON(t *testing.T) {
+	jsonStr := `{
+		"kultum_queue": ["Ali", "Umar"],
+		"weekly_matrix": {
+			"monday": {
+				"day_name": "Senin",
+				"subuh": {"adzan": "Ali", "imam": "Umar"}
+			}
+		}
+	}`
+	cfg := LoadSchedule("", jsonStr)
+	if cfg.KultumQueueLen() != 2 {
+		t.Errorf("KultumQueueLen = %d; want 2", cfg.KultumQueueLen())
+	}
+	if cfg.GetKultumSpeaker(0) != "Ali" {
+		t.Errorf("Speaker 0 = %q; want Ali", cfg.GetKultumSpeaker(0))
+	}
+	sched := cfg.GetDaySchedule(time.Monday)
+	if sched.Subuh.Adzan != "Ali" {
+		t.Errorf("Monday Subuh Adzan = %q; want Ali", sched.Subuh.Adzan)
 	}
 }
