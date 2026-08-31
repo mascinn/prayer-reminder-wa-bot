@@ -25,6 +25,8 @@ type Config struct {
 	MembersJSON         string
 	ScheduleFile        string
 	ScheduleJSON        string
+	TursoURL            string
+	TursoToken          string
 }
 
 // LoadConfig reads configuration from .env file (if present) and environment variables.
@@ -61,6 +63,9 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	tursoURL := getEnv("TURSO_DATABASE_URL", getEnv("TURSO_URL", ""))
+	tursoToken := getEnv("TURSO_AUTH_TOKEN", getEnv("TURSO_TOKEN", ""))
+
 	cfg := &Config{
 		TargetJID:           getEnv("TARGET_JID", ""),
 		DBPath:              dbPath,
@@ -74,6 +79,8 @@ func LoadConfig() (*Config, error) {
 		MembersJSON:         getEnv("MEMBERS_JSON", ""),
 		ScheduleFile:        getEnv("SCHEDULE_FILE", "./data/schedule.json"),
 		ScheduleJSON:        getEnv("SCHEDULE_JSON", ""),
+		TursoURL:            tursoURL,
+		TursoToken:          tursoToken,
 	}
 
 	return cfg, nil

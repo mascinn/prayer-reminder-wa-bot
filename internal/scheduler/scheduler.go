@@ -207,8 +207,10 @@ func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime tim
 
 	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send daytime reminder for %s: %v", prayer, err)
+		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", fmt.Sprintf("FAILED: %v", err))
 	} else {
 		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp.", prayer)
+		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", "SUCCESS")
 	}
 }
 
@@ -245,8 +247,10 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 
 	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Subuh/Kultum reminder: %v", err)
+		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, fmt.Sprintf("FAILED: %v", err))
 	} else {
 		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully. Speaker: %s (Queue Index: %d)", speaker, usedIdx)
+		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, "SUCCESS")
 	}
 }
 
@@ -268,8 +272,10 @@ func (s *Scheduler) RunFridayReminder() {
 
 	if err := s.bot.SendReminder(ctx, s.cfg.TargetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Friday reminder: %v", err)
+		_ = s.storage.LogReminder("friday_prep", "21:00", "-", "-", "-", fmt.Sprintf("FAILED: %v", err))
 	} else {
 		log.Println("[Scheduler] Friday reminder dispatched successfully.")
+		_ = s.storage.LogReminder("friday_prep", "21:00", "-", "-", "-", "SUCCESS")
 	}
 }
 

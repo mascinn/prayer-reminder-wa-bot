@@ -4,13 +4,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"remind-bot/internal/matrix"
+	"remind-bot/internal/phonebook"
 )
 
 func TestStorageKultumQueue(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test.db")
 
-	store, err := NewStorage(dbPath)
+	store, err := NewStorage(dbPath, "", "")
 	if err != nil {
 		t.Fatalf("Failed to initialize storage: %v", err)
 	}
@@ -51,7 +55,7 @@ func TestStorageGenericStateAndCache(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test.db")
 
-	store, err := NewStorage(dbPath)
+	store, err := NewStorage(dbPath, "", "")
 	if err != nil {
 		t.Fatalf("Failed to initialize storage: %v", err)
 	}
@@ -87,12 +91,68 @@ func TestStorageGenericStateAndCache(t *testing.T) {
 	}
 }
 
+func TestStorageMembersAndDutySchedule(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test.db")
+
+	store, err := NewStorage(dbPath, "", "")
+	if err != nil {
+		t.Fatalf("Failed to initialize storage: %v", err)
+	}
+	defer store.Close()
+
+	// Test Save & Load Members
+	members := []phonebook.Member{
+		{DisplayName: "Ahmad", Phones: []string{"6281100000001", "6281100000002"}, Aliases: []string{"ahmad"}},
+		{DisplayName: "Zaid", Phone: "6281100000003", Aliases: []string{"zaid"}},
+	}
+	if err := store.SaveMembers(members); err != nil {
+		t.Fatalf("SaveMembers failed: %v", err)
+	}
+
+	loadedMembers, err := store.LoadMembers()
+	if err != nil {
+		t.Fatalf("LoadMembers failed: %v", err)
+	}
+	if len(loadedMembers) != 2 {
+		t.Fatalf("LoadMembers count = %d; want 2", len(loadedMembers))
+	}
+	if loadedMembers[0].DisplayName != "Ahmad" || len(loadedMembers[0].Phones) != 2 {
+		t.Errorf("Loaded member 0 mismatch: %+v", loadedMembers[0])
+	}
+
+	// Test Save & Load Duty Matrix
+	matrixMap := map[time.Weekday]matrix.DaySchedule{
+		time.Monday: {
+			DayName: "Senin",
+			Subuh:   matrix.DutyAssignment{Adzan: "Ahmad", Imam: "Zaid"},
+			Zhuhur:  matrix.DutyAssignment{Adzan: "Zaid", Imam: "Ahmad"},
+		},
+	}
+	if err := store.SaveDutySchedule(matrixMap); err != nil {
+		t.Fatalf("SaveDutySchedule failed: %v", err)
+	}
+
+	loadedMatrix, err := store.LoadDutyMatrix()
+	if err != nil {
+		t.Fatalf("LoadDutyMatrix failed: %v", err)
+	}
+	if loadedMatrix[time.Monday].Subuh.Adzan != "Ahmad" {
+		t.Errorf("Monday Subuh Adzan = %q; want Ahmad", loadedMatrix[time.Monday].Subuh.Adzan)
+	}
+
+	// Test LogReminder
+	if err := store.LogReminder("subuh", "04:45", "Ahmad", "Zaid", "Umar", "SUCCESS"); err != nil {
+		t.Fatalf("LogReminder failed: %v", err)
+	}
+}
+
 func TestStoragePersistenceAcrossReopen(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "persist.db")
 
 	// Open first time, set values
-	store1, err := NewStorage(dbPath)
+	store1, err := NewStorage(dbPath, "", "")
 	if err != nil {
 		t.Fatalf("First open failed: %v", err)
 	}
@@ -107,7 +167,7 @@ func TestStoragePersistenceAcrossReopen(t *testing.T) {
 	}
 
 	// Open second time, verify persistence
-	store2, err := NewStorage(dbPath)
+	store2, err := NewStorage(dbPath, "", "")
 	if err != nil {
 		t.Fatalf("Second open failed: %v", err)
 	}

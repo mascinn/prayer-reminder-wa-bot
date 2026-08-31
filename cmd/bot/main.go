@@ -40,19 +40,46 @@ func main() {
 	log.Printf("[Main] Friday Reminder Enabled: %t", cfg.EnableJumatReminder)
 	log.Printf("[Main] Kemenag City ID: %s (Kota Bandar Lampung / Rajabasa / UNILA)", cfg.CityID)
 
-	// 2. Initialize Phonebook registry & Duty Matrix
-	reg := phonebook.LoadRegistry(cfg.MembersFile, cfg.MembersJSON)
-	log.Printf("[Main] Loaded %d registered community members into phonebook.", len(reg.GetAllMembers()))
-
-	matrixCfg := matrix.LoadSchedule(cfg.ScheduleFile, cfg.ScheduleJSON)
-	log.Printf("[Main] Loaded duty matrix with %d kultum rotation speakers.", matrixCfg.KultumQueueLen())
-
-	// 3. Initialize SQLite state & auth storage
-	store, err := storage.NewStorage(cfg.DBPath)
+	// 2. Initialize Persistent Storage (Turso libSQL Cloud or Local SQLite)
+	store, err := storage.NewStorage(cfg.DBPath, cfg.TursoURL, cfg.TursoToken)
 	if err != nil {
-		log.Fatalf("[Main] Failed to initialize SQLite storage: %v", err)
+		log.Fatalf("[Main] Failed to initialize storage: %v", err)
 	}
 	defer store.Close()
+
+	// 3. Initialize Phonebook registry & Duty Matrix (with DB sync / auto-seeding)
+	localMembers := phonebook.LoadRegistry(cfg.MembersFile, cfg.MembersJSON).GetAllMembers()
+	localSchedule := matrix.LoadSchedule(cfg.ScheduleFile, cfg.ScheduleJSON)
+
+	store.AutoSeedInitialData(localMembers, localSchedule)
+
+	var reg *phonebook.Registry
+	if dbMembers, err := store.LoadMembers(); err == nil && len(dbMembers) > 0 {
+		reg = phonebook.NewRegistryFromMembers(dbMembers)
+		log.Printf("[Main] Loaded %d registered community members from database.", len(dbMembers))
+	} else {
+		reg = phonebook.NewRegistryFromMembers(localMembers)
+		log.Printf("[Main] Loaded %d registered community members into phonebook.", len(reg.GetAllMembers()))
+	}
+
+	if dbMatrix, err := store.LoadDutyMatrix(); err == nil && len(dbMatrix) > 0 {
+		if dbQueue, err := store.LoadKultumQueue(); err == nil && len(dbQueue) > 0 {
+			sc := &matrix.ScheduleConfig{
+				KultumQueue: dbQueue,
+				WeeklyMatrix: matrix.WeeklyMatrixRaw{
+					Monday:    dbMatrix[time.Monday],
+					Tuesday:   dbMatrix[time.Tuesday],
+					Wednesday: dbMatrix[time.Wednesday],
+					Thursday:  dbMatrix[time.Thursday],
+					Friday:    dbMatrix[time.Friday],
+					Saturday:  dbMatrix[time.Saturday],
+					Sunday:    dbMatrix[time.Sunday],
+				},
+			}
+			matrix.SetActiveSchedule(sc)
+		}
+	}
+	log.Printf("[Main] Loaded duty matrix with %d kultum rotation speakers.", matrix.KultumQueueLen())
 
 	kultumIdx, err := store.GetKultumIndex()
 	if err != nil {
