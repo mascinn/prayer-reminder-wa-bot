@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -227,12 +228,21 @@ func (s *Scheduler) sendDaytimeReminder(prayer matrix.PrayerName, prayerTime tim
 		return
 	}
 
-	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
+	msgID, err := s.bot.SendReminder(ctx, targetJID, msg)
+	if err != nil {
 		log.Printf("[Scheduler] Failed to send daytime reminder for %s: %v", prayer, err)
 		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp (%s).", prayer, targetJID)
+		log.Printf("[Scheduler] %s reminder successfully dispatched to WhatsApp (%s). Message ID: %s", prayer, targetJID, msgID)
 		_ = s.storage.LogReminder(string(prayer), prayerTime.Format("15:04"), duty.Adzan, duty.Imam, "", "SUCCESS")
+
+		nowInLoc := time.Now().In(s.cfg.Location)
+		prayerDateStr := nowInLoc.Format("2006-01-02")
+		cutoffTime := time.Date(nowInLoc.Year(), nowInLoc.Month(), nowInLoc.Day(), 23, 59, 59, 0, s.cfg.Location)
+
+		if err := s.storage.SaveDutyRecord(string(msgID), prayerDateStr, string(prayer), duty.Adzan, duty.Imam, cutoffTime); err != nil {
+			log.Printf("[Scheduler] Failed to save duty record for msg %s: %v", msgID, err)
+		}
 	}
 }
 
@@ -268,12 +278,20 @@ func (s *Scheduler) RunSubuhKultumReminder() {
 		return
 	}
 
-	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
+	msgID, err := s.bot.SendReminder(ctx, targetJID, msg)
+	if err != nil {
 		log.Printf("[Scheduler] Failed to send Subuh/Kultum reminder: %v", err)
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, fmt.Sprintf("FAILED: %v", err))
 	} else {
-		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully to %s. Speaker: %s (Day: %d)", targetJID, speaker, tomorrow.Day())
+		log.Printf("[Scheduler] Subuh/Kultum reminder sent successfully to %s. Speaker: %s (Day: %d), Message ID: %s", targetJID, speaker, tomorrow.Day(), msgID)
 		_ = s.storage.LogReminder("subuh_kultum", subuhTimeStr, subuhDuty.Adzan, subuhDuty.Imam, speaker, "SUCCESS")
+
+		prayerDateStr := tomorrow.Format("2006-01-02")
+		cutoffTime := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 23, 59, 59, 0, s.cfg.Location)
+
+		if err := s.storage.SaveDutyRecord(string(msgID), prayerDateStr, "Subuh", subuhDuty.Adzan, subuhDuty.Imam, cutoffTime); err != nil {
+			log.Printf("[Scheduler] Failed to save Subuh duty record for msg %s: %v", msgID, err)
+		}
 	}
 }
 
@@ -299,7 +317,7 @@ func (s *Scheduler) RunFridayReminder() {
 		return
 	}
 
-	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
+	if _, err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Friday reminder: %v", err)
 		_ = s.storage.LogReminder("friday_prep", "21:00", "-", "-", "-", fmt.Sprintf("FAILED: %v", err))
 	} else {
@@ -336,7 +354,7 @@ func (s *Scheduler) RunCanteenReminder() {
 		return
 	}
 
-	if err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
+	if _, err := s.bot.SendReminder(ctx, targetJID, msg); err != nil {
 		log.Printf("[Scheduler] Failed to send Canteen reminder: %v", err)
 		_ = s.storage.LogReminder("canteen_collection", "15:00", strings.Join(officers, ", "), "-", "-", fmt.Sprintf("FAILED: %v", err))
 	} else {
@@ -481,4 +499,98 @@ func (s *Scheduler) registerCommands() {
 	}
 	s.bot.RegisterCommand("kantin", canteenHandler)
 	s.bot.RegisterCommand("jadwalkantin", canteenHandler)
+
+	// !rekap, !kehadiran, !keaktifan
+	rekapHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		now := time.Now().In(s.cfg.Location)
+		targetYear := now.Year()
+		targetMonth := int(now.Month())
+
+		// Subcommand: !rekap detail <nama> [bulan] [tahun]
+		if len(args) >= 2 && strings.ToLower(args[0]) == "detail" {
+			officerName := args[1]
+			if len(args) >= 3 {
+				if m, ok := parseMonth(args[2]); ok {
+					targetMonth = m
+				}
+			}
+			if len(args) >= 4 {
+				if y, err := strconv.Atoi(args[3]); err == nil && y >= 2020 && y <= 2100 {
+					targetYear = y
+				}
+			}
+
+			missed, totalAssigned, totalExecuted, err := s.storage.GetMonthlyOfficerDetail(targetYear, targetMonth, officerName)
+			if err != nil {
+				return fmt.Sprintf("⚠️ Gagal mengambil detail keaktifan: %v", err), nil, nil
+			}
+
+			res := templates.BuildOfficerDetailRecap(targetYear, targetMonth, officerName, missed, totalAssigned, totalExecuted)
+			return res, nil, nil
+		}
+
+		if len(args) == 1 {
+			// Subcommand or single arg: !rekap [bulan]
+			if m, ok := parseMonth(args[0]); ok {
+				targetMonth = m
+			} else if y, err := strconv.Atoi(args[0]); err == nil && y >= 2020 && y <= 2100 {
+				targetYear = y
+			} else {
+				return "ℹ️ *Format Perintah Rekap:*\n• `!rekap` (Bulan ini)\n• `!rekap [bulan] [tahun]` (Contoh: `!rekap 08 2026`)\n• `!rekap detail [nama]` (Contoh: `!rekap detail Ahmad`)", nil, nil
+			}
+		} else if len(args) >= 2 {
+			// !rekap [bulan] [tahun] e.g. !rekap 08 2026 or !rekap 2026 08
+			m1, ok1 := parseMonth(args[0])
+			y1, err1 := strconv.Atoi(args[1])
+			if ok1 && err1 == nil && y1 >= 2020 && y1 <= 2100 {
+				targetMonth = m1
+				targetYear = y1
+			} else {
+				y2, err2 := strconv.Atoi(args[0])
+				m2, ok2 := parseMonth(args[1])
+				if ok2 && err2 == nil && y2 >= 2020 && y2 <= 2100 {
+					targetMonth = m2
+					targetYear = y2
+				} else {
+					return "ℹ️ *Format Perintah Rekap:*\n• `!rekap` (Bulan ini)\n• `!rekap [bulan] [tahun]` (Contoh: `!rekap 08 2026`)\n• `!rekap detail [nama]` (Contoh: `!rekap detail Ahmad`)", nil, nil
+				}
+			}
+		}
+
+		recapData, err := s.storage.GetMonthlyRecap(targetYear, targetMonth)
+		if err != nil {
+			return fmt.Sprintf("⚠️ Gagal mengambil data rekap: %v", err), nil, nil
+		}
+
+		res := templates.BuildMonthlyRecap(recapData)
+		return res, nil, nil
+	}
+	s.bot.RegisterCommand("rekap", rekapHandler)
+	s.bot.RegisterCommand("kehadiran", rekapHandler)
+	s.bot.RegisterCommand("keaktifan", rekapHandler)
+}
+
+func parseMonth(token string) (int, bool) {
+	token = strings.ToLower(strings.TrimSpace(token))
+	if m, err := strconv.Atoi(token); err == nil && m >= 1 && m <= 12 {
+		return m, true
+	}
+	months := map[string]int{
+		"jan": 1, "januari": 1, "january": 1,
+		"feb": 2, "februari": 2, "february": 2,
+		"mar": 3, "maret": 3, "march": 3,
+		"apr": 4, "april": 4,
+		"mei": 5, "may": 5,
+		"jun": 6, "juni": 6, "june": 6,
+		"jul": 7, "juli": 7, "july": 7,
+		"agu": 8, "agustus": 8, "agust": 8, "aug": 8, "august": 8,
+		"sep": 9, "september": 9, "sept": 9,
+		"okt": 10, "oktober": 10, "oct": 10, "october": 10,
+		"nov": 11, "november": 11,
+		"des": 12, "desember": 12, "dec": 12, "december": 12,
+	}
+	if m, ok := months[token]; ok {
+		return m, true
+	}
+	return 0, false
 }

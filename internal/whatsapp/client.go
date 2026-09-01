@@ -186,23 +186,24 @@ func (b *Bot) Stop() {
 }
 
 // SendReminder sends a templated reminder message with mention payloads to target JID.
-func (b *Bot) SendReminder(ctx context.Context, targetJID string, msg templates.ReminderMessage) error {
+// Returns the sent WhatsApp message ID and any error.
+func (b *Bot) SendReminder(ctx context.Context, targetJID string, msg templates.ReminderMessage) (types.MessageID, error) {
 	if targetJID == "" {
 		targetJID = b.cfg.TargetJID
 	}
 	if targetJID == "" {
-		return fmt.Errorf("no target JID configured (TARGET_JID is empty)")
+		return "", fmt.Errorf("no target JID configured (TARGET_JID is empty)")
 	}
 
 	jid, err := types.ParseJID(targetJID)
 	if err != nil {
-		return fmt.Errorf("invalid target JID %q: %w", targetJID, err)
+		return "", fmt.Errorf("invalid target JID %q: %w", targetJID, err)
 	}
 
 	if !b.client.IsConnected() {
 		log.Printf("[WhatsApp] Warning: Client not currently connected, attempting reconnect...")
 		if err := b.client.Connect(); err != nil {
-			return fmt.Errorf("client not connected and reconnect failed: %w", err)
+			return "", fmt.Errorf("client not connected and reconnect failed: %w", err)
 		}
 	}
 
@@ -220,11 +221,25 @@ func (b *Bot) SendReminder(ctx context.Context, targetJID string, msg templates.
 
 	resp, err := b.client.SendMessage(sendCtx, jid, protoMsg)
 	if err != nil {
-		return fmt.Errorf("failed to send reminder to %s: %w", jid.String(), err)
+		return "", fmt.Errorf("failed to send reminder to %s: %w", jid.String(), err)
 	}
 
 	log.Printf("[WhatsApp] Successfully sent message to %s (ID: %s, Mentions: %d)", jid.String(), resp.ID, len(msg.MentionedJID))
-	return nil
+	return resp.ID, nil
+}
+
+// SendReaction sends or removes an emoji reaction on a target message.
+func (b *Bot) SendReaction(ctx context.Context, chatJID types.JID, targetMessageID types.MessageID, emoji string) error {
+	if !b.client.IsConnected() {
+		return fmt.Errorf("client not connected")
+	}
+
+	reactionMsg := b.client.BuildReaction(chatJID, types.EmptyJID, targetMessageID, emoji)
+	sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	_, err := b.client.SendMessage(sendCtx, chatJID, reactionMsg)
+	return err
 }
 
 // SendSimpleMessage sends a plain text message to a specific JID without mentions.
@@ -259,8 +274,67 @@ func (b *Bot) handleEvent(rawEvt interface{}) {
 		log.Printf("[WhatsApp] Disconnected from WhatsApp server. Auto-reconnecting will handle reconnect.")
 
 	case *events.Message:
+		if evt.Message != nil && evt.Message.ReactionMessage != nil {
+			b.handleIncomingReaction(evt)
+			return
+		}
 		b.handleIncomingMessage(evt)
 	}
+}
+
+func (b *Bot) handleIncomingReaction(evt *events.Message) {
+	reaction := evt.Message.GetReactionMessage()
+	if reaction == nil || reaction.GetKey() == nil {
+		return
+	}
+
+	targetMsgID := reaction.GetKey().GetID()
+	if targetMsgID == "" {
+		return
+	}
+
+	emoji := reaction.GetText()
+	senderJID := evt.Info.Sender.String()
+	chatJID := evt.Info.Chat
+
+	if b.storage == nil {
+		return
+	}
+
+	now := time.Now()
+	if b.cfg != nil && b.cfg.Location != nil {
+		now = now.In(b.cfg.Location)
+	}
+
+	isHandled, shouldBotReact, err := b.storage.UpdateDutyReaction(targetMsgID, emoji, senderJID, now)
+	if err != nil {
+		log.Printf("[WhatsApp] Error processing duty reaction on msg %s: %v", targetMsgID, err)
+		return
+	}
+
+	if !isHandled {
+		// Not a tracked duty reminder or past cutoff time or non-report emoji
+		return
+	}
+
+	log.Printf("[WhatsApp] Handled duty reaction %q on msg %s from %s (shouldBotReact: %v)", emoji, targetMsgID, senderJID, shouldBotReact)
+
+	// Send bot reaction feedback
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		var botEmoji string
+		if shouldBotReact {
+			botEmoji = "✅"
+		} else {
+			botEmoji = "" // unreact
+		}
+
+		if err := b.SendReaction(ctx, chatJID, types.MessageID(targetMsgID), botEmoji); err != nil {
+			log.Printf("[WhatsApp] Failed to send bot reaction confirmation to %s: %v", targetMsgID, err)
+		}
+	}()
 }
 
 func (b *Bot) handleIncomingMessage(evt *events.Message) {
@@ -303,7 +377,7 @@ func (b *Bot) handleIncomingMessage(evt *events.Message) {
 		}
 
 		if reminderMsg != nil {
-			_ = b.SendReminder(ctx, evt.Info.Chat.String(), *reminderMsg)
+			_, _ = b.SendReminder(ctx, evt.Info.Chat.String(), *reminderMsg)
 		} else if replyText != "" {
 			_ = b.SendSimpleMessage(ctx, evt.Info.Chat, replyText)
 		}

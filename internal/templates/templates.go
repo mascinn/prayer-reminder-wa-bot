@@ -7,6 +7,7 @@ import (
 
 	"remind-bot/internal/matrix"
 	"remind-bot/internal/phonebook"
+	"remind-bot/internal/storage"
 )
 
 // ReminderMessage contains the final formatted text and list of JIDs to mention.
@@ -35,7 +36,14 @@ Petugas:
 📢 Adzan : %s
 👳 Imam  : %s
 
-_Waktu masuk ±15 menit lagi. Dimohon kepada petugas untuk bersiap-siap._`,
+_Waktu masuk ±15 menit lagi. Dimohon kepada petugas untuk bersiap-siap._
+
+━━━━━━━━━━━━━━━━━
+ℹ️ *React jika petugas tidak menjalankan tugas:*
+👆 = Adzan
+👇 = Imam
+✌️ = Keduanya
+_(Batas laporan/ralat s.d 23:59 WIB)_`,
 		strings.ToUpper(string(prayer)),
 		timeStr,
 		adzanTag,
@@ -75,7 +83,14 @@ Petugas:
 👳 Imam   : %s
 🎙️ Kultum : %s
 
-*Dimohon kepada petugas untuk mempersiapkan diri dan bangun lebih awal.*`,
+*Dimohon kepada petugas untuk mempersiapkan diri dan bangun lebih awal.*
+
+━━━━━━━━━━━━━━━━━
+ℹ️ *React jika petugas tidak menjalankan tugas:*
+👆 = Adzan
+👇 = Imam
+✌️ = Keduanya
+_(Batas laporan/ralat s.d 23:59 WIB besok)_`,
 		matrix.FormatIndonesianDate(tomorrowDate),
 		subuhTimeStr,
 		adzanTag,
@@ -359,3 +374,75 @@ func uniqueJIDs(jids []string) []string {
 	}
 	return result
 }
+
+// BuildMonthlyRecap formats the monthly attendance overview for !rekap command.
+func BuildMonthlyRecap(recap *storage.MonthlyRecapData) string {
+	if recap == nil || len(recap.OfficerStats) == 0 {
+		return fmt.Sprintf("📊 *REKAP KEAKTIFAN PETUGAS SHOLAT*\nPeriode: %02d/%04d\n\n_Belum ada data jadwal/rekap yang tercatat pada bulan ini._", recap.Month, recap.Year)
+	}
+
+	t := time.Date(recap.Year, time.Month(recap.Month), 1, 0, 0, 0, 0, time.UTC)
+	periodeStr := matrix.FormatIndonesianMonthYear(t)
+
+	var sb strings.Builder
+	sb.WriteString("📊 *REKAP KEAKTIFAN PETUGAS SHOLAT*\n")
+	sb.WriteString(fmt.Sprintf("Periode: %s\n\n", periodeStr))
+	sb.WriteString("Daftar Petugas:\n")
+
+	for i, off := range recap.OfficerStats {
+		icon := "✅"
+		if off.TotalMissed > 0 {
+			icon = "⚠️"
+		}
+		sb.WriteString(fmt.Sprintf("%d. %-8s : %d/%d (%.0f%%) | %dx Tidak Menjalankan %s\n",
+			i+1, off.OfficerName, off.TotalExecuted, off.TotalAssigned, off.Percentage, off.TotalMissed, icon))
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("Total Sholat Tercatat : %d Waktu\n", recap.TotalDuties))
+	sb.WriteString(fmt.Sprintf("Tingkat Pelaksanaan   : %.1f%%\n\n", recap.OverallPct))
+	sb.WriteString("_Ketik `!rekap detail [nama]` untuk rincian waktu sholat._")
+
+	return sb.String()
+}
+
+// BuildOfficerDetailRecap formats the detail of missed duties for an officer in a month.
+func BuildOfficerDetailRecap(year int, month int, officerName string, missed []storage.MissedDutyDetail, totalAssigned, totalExecuted int) string {
+	t := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	periodeStr := matrix.FormatIndonesianMonthYear(t)
+	totalMissed := totalAssigned - totalExecuted
+
+	var sb strings.Builder
+	sb.WriteString("📋 *RINCIAN TIDAK MENJALANKAN TUGAS*\n")
+	sb.WriteString(fmt.Sprintf("Petugas: *%s*\n", officerName))
+	sb.WriteString(fmt.Sprintf("Periode: %s\n", periodeStr))
+	sb.WriteString(fmt.Sprintf("Total Jadwal: %d | Menjalankan: %d | Tidak: %d\n\n", totalAssigned, totalExecuted, totalMissed))
+
+	if len(missed) == 0 {
+		if totalAssigned == 0 {
+			sb.WriteString(fmt.Sprintf("_Tidak ada jadwal tugas atas nama *%s* pada periode ini._\n", officerName))
+		} else {
+			sb.WriteString("🎉 *Alhamdulillah! Semua jadwal tugas pada periode ini telah dilaksanakan dengan baik.* ✅\n")
+		}
+		return sb.String()
+	}
+
+	sb.WriteString("Daftar Sholat yang Tidak Dilaksanakan:\n")
+	for i, m := range missed {
+		dateFormatted := m.PrayerDate
+		if parsedDate, err := time.Parse("2006-01-02", m.PrayerDate); err == nil {
+			dateFormatted = parsedDate.Format("02/01/2006")
+		}
+		sb.WriteString(fmt.Sprintf("%d. 📅 %s - %s (Tugas: %s)\n", i+1, dateFormatted, m.PrayerName, m.Role))
+		if m.ReporterJID != "" {
+			rep := strings.TrimSuffix(m.ReporterJID, "@s.whatsapp.net")
+			if idx := strings.Index(rep, "@"); idx != -1 {
+				rep = rep[:idx]
+			}
+			sb.WriteString(fmt.Sprintf("   └ Dilaporkan oleh: %s\n", rep))
+		}
+	}
+
+	return sb.String()
+}
+

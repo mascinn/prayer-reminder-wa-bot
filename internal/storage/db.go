@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -126,6 +127,23 @@ func (s *Storage) migrate() error {
 			officers_json TEXT NOT NULL,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS duty_attendance_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			message_id TEXT NOT NULL UNIQUE,
+			prayer_date TEXT NOT NULL,
+			prayer_name TEXT NOT NULL,
+			adzan_officer TEXT NOT NULL,
+			imam_officer TEXT NOT NULL,
+			adzan_executed INTEGER DEFAULT 1,
+			imam_executed INTEGER DEFAULT 1,
+			last_reaction TEXT DEFAULT '',
+			reporter_jid TEXT DEFAULT '',
+			cutoff_time TIMESTAMP NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_duty_logs_msg_id ON duty_attendance_logs(message_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_duty_logs_prayer_date ON duty_attendance_logs(prayer_date);`,
 	}
 
 	for _, q := range queries {
@@ -600,3 +618,391 @@ func (s *Storage) GetCachedJadwal(dateKey string) (string, error) {
 	}
 	return jsonContent, err
 }
+
+// --- Duty Attendance Tracking & Reactions ---
+
+// DutyAttendance represents a single prayer reminder duty and its execution status.
+type DutyAttendance struct {
+	ID            int64     `json:"id"`
+	MessageID     string    `json:"message_id"`
+	PrayerDate    string    `json:"prayer_date"` // YYYY-MM-DD
+	PrayerName    string    `json:"prayer_name"`
+	AdzanOfficer  string    `json:"adzan_officer"`
+	ImamOfficer   string    `json:"imam_officer"`
+	AdzanExecuted bool      `json:"adzan_executed"`
+	ImamExecuted  bool      `json:"imam_executed"`
+	LastReaction  string    `json:"last_reaction"`
+	ReporterJID   string    `json:"reporter_jid"`
+	CutoffTime    time.Time `json:"cutoff_time"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// OfficerAttendanceSummary aggregates attendance metrics for one officer in a month.
+type OfficerAttendanceSummary struct {
+	OfficerName   string  `json:"officer_name"`
+	TotalAssigned int     `json:"total_assigned"`
+	TotalExecuted int     `json:"total_executed"`
+	TotalMissed   int     `json:"total_missed"`
+	Percentage    float64 `json:"percentage"`
+}
+
+// MonthlyRecapData contains full month overview for !rekap command.
+type MonthlyRecapData struct {
+	Year         int                        `json:"year"`
+	Month        int                        `json:"month"`
+	TotalDuties  int                        `json:"total_duties"`
+	OverallPct   float64                    `json:"overall_pct"`
+	OfficerStats []OfficerAttendanceSummary `json:"officer_stats"`
+}
+
+// MissedDutyDetail represents an individual prayer time where the officer did not execute duty.
+type MissedDutyDetail struct {
+	PrayerDate  string    `json:"prayer_date"`
+	PrayerName  string    `json:"prayer_name"`
+	Role        string    `json:"role"` // "Adzan" or "Imam"
+	ReporterJID string    `json:"reporter_jid"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// CleanEmoji strips variation selectors and whitespace for robust comparison.
+func CleanEmoji(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\uFE0F", "") // strip variation selector-16
+	return s
+}
+
+func parseFlexibleTime(val string) (time.Time, error) {
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return time.Time{}, nil
+	}
+	formats := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05-07:00",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, val); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unable to parse time: %s", val)
+}
+
+// SaveDutyRecord saves or updates an active duty reminder linked to a WhatsApp message ID.
+func (s *Storage) SaveDutyRecord(messageID, prayerDate, prayerName, adzanOfficer, imamOfficer string, cutoffTime time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	INSERT INTO duty_attendance_logs (
+		message_id, prayer_date, prayer_name, adzan_officer, imam_officer,
+		adzan_executed, imam_executed, last_reaction, reporter_jid, cutoff_time, updated_at
+	) VALUES (?, ?, ?, ?, ?, 1, 1, '', '', ?, ?)
+	ON CONFLICT(message_id) DO UPDATE SET
+		prayer_date = excluded.prayer_date,
+		prayer_name = excluded.prayer_name,
+		adzan_officer = excluded.adzan_officer,
+		imam_officer = excluded.imam_officer,
+		cutoff_time = excluded.cutoff_time,
+		updated_at = excluded.updated_at;
+	`
+	_, err := s.db.Exec(query, messageID, prayerDate, prayerName, adzanOfficer, imamOfficer, cutoffTime.UTC(), time.Now().UTC())
+	return err
+}
+
+// GetDutyRecordByMessageID retrieves a duty record by its WhatsApp message ID.
+func (s *Storage) GetDutyRecordByMessageID(messageID string) (*DutyAttendance, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `
+	SELECT id, message_id, prayer_date, prayer_name, adzan_officer, imam_officer,
+	       adzan_executed, imam_executed, last_reaction, reporter_jid, cutoff_time, created_at, updated_at
+	FROM duty_attendance_logs
+	WHERE message_id = ?;
+	`
+	row := s.db.QueryRow(query, messageID)
+
+	var d DutyAttendance
+	var adzanExec, imamExec int
+	var cutoffStr, createdStr, updatedStr string
+
+	err := row.Scan(
+		&d.ID, &d.MessageID, &d.PrayerDate, &d.PrayerName, &d.AdzanOfficer, &d.ImamOfficer,
+		&adzanExec, &imamExec, &d.LastReaction, &d.ReporterJID, &cutoffStr, &createdStr, &updatedStr,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	d.AdzanExecuted = (adzanExec == 1)
+	d.ImamExecuted = (imamExec == 1)
+
+	d.CutoffTime, _ = parseFlexibleTime(cutoffStr)
+	d.CreatedAt, _ = parseFlexibleTime(createdStr)
+	d.UpdatedAt, _ = parseFlexibleTime(updatedStr)
+
+	return &d, nil
+}
+
+// UpdateDutyReaction processes an emoji reaction (or un-react) on a duty reminder message.
+// Returns:
+// - isHandled: true if this message ID was a tracked duty record and within cutoff.
+// - shouldBotReact: true if bot should react with ✅, false if bot should remove its reaction ("").
+// - err: any error encountered.
+func (s *Storage) UpdateDutyReaction(messageID, rawEmoji, reporterJID string, now time.Time) (bool, bool, error) {
+	record, err := s.GetDutyRecordByMessageID(messageID)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to query duty record: %w", err)
+	}
+	if record == nil {
+		// Not a tracked reminder message
+		return false, false, nil
+	}
+
+	// Check if past cutoff time
+	if !record.CutoffTime.IsZero() && now.UTC().After(record.CutoffTime) {
+		log.Printf("[Storage] Reaction on message %s ignored: past cutoff time %s", messageID, record.CutoffTime.Format(time.RFC3339))
+		return false, false, nil
+	}
+
+	clean := CleanEmoji(rawEmoji)
+
+	var adzanExec, imamExec int
+	var shouldBotReact bool
+	var newReaction string
+
+	if clean == "" {
+		// Un-react: reset both to executed (1)
+		adzanExec = 1
+		imamExec = 1
+		newReaction = ""
+		shouldBotReact = false
+	} else if strings.Contains(clean, "👆") {
+		// Adzan tidak menjalankan
+		adzanExec = 0
+		imamExec = 1
+		newReaction = rawEmoji
+		shouldBotReact = true
+	} else if strings.Contains(clean, "👇") {
+		// Imam tidak menjalankan
+		adzanExec = 1
+		imamExec = 0
+		newReaction = rawEmoji
+		shouldBotReact = true
+	} else if strings.Contains(clean, "✌") || strings.Contains(clean, "2️⃣") || clean == "2" {
+		// Keduanya tidak menjalankan
+		adzanExec = 0
+		imamExec = 0
+		newReaction = rawEmoji
+		shouldBotReact = true
+	} else {
+		// Other unrelated emoji (e.g. 👍, ❤️) - ignore
+		return false, false, nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	UPDATE duty_attendance_logs
+	SET adzan_executed = ?,
+	    imam_executed = ?,
+	    last_reaction = ?,
+	    reporter_jid = ?,
+	    updated_at = ?
+	WHERE message_id = ?;
+	`
+	_, err = s.db.Exec(query, adzanExec, imamExec, newReaction, reporterJID, now.UTC(), messageID)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to update duty reaction: %w", err)
+	}
+
+	return true, shouldBotReact, nil
+}
+
+// GetMonthlyRecap calculates summary statistics for a given year and month (1-12).
+func (s *Storage) GetMonthlyRecap(year int, month int) (*MonthlyRecapData, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	monthPrefix := fmt.Sprintf("%04d-%02d-%%", year, month)
+
+	query := `
+	SELECT adzan_officer, imam_officer, adzan_executed, imam_executed
+	FROM duty_attendance_logs
+	WHERE prayer_date LIKE ?;
+	`
+	rows, err := s.db.Query(query, monthPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query monthly attendance: %w", err)
+	}
+	defer rows.Close()
+
+	type officerAccum struct {
+		assigned int
+		executed int
+		missed   int
+	}
+	statsMap := make(map[string]*officerAccum)
+
+	totalDutiesAssigned := 0
+	totalDutiesExecuted := 0
+
+	for rows.Next() {
+		var adzan, imam string
+		var adzanExec, imamExec int
+		if err := rows.Scan(&adzan, &imam, &adzanExec, &imamExec); err != nil {
+			return nil, err
+		}
+
+		adzan = strings.TrimSpace(adzan)
+		if adzan != "" && !strings.EqualFold(adzan, "libur") && !strings.EqualFold(adzan, "kosong") && !strings.Contains(strings.ToLower(adzan), "sholat jum'at") {
+			totalDutiesAssigned++
+			if statsMap[adzan] == nil {
+				statsMap[adzan] = &officerAccum{}
+			}
+			statsMap[adzan].assigned++
+			if adzanExec == 1 {
+				statsMap[adzan].executed++
+				totalDutiesExecuted++
+			} else {
+				statsMap[adzan].missed++
+			}
+		}
+
+		imam = strings.TrimSpace(imam)
+		if imam != "" && !strings.EqualFold(imam, "libur") && !strings.EqualFold(imam, "kosong") && !strings.Contains(strings.ToLower(imam), "sholat jum'at") {
+			totalDutiesAssigned++
+			if statsMap[imam] == nil {
+				statsMap[imam] = &officerAccum{}
+			}
+			statsMap[imam].assigned++
+			if imamExec == 1 {
+				statsMap[imam].executed++
+				totalDutiesExecuted++
+			} else {
+				statsMap[imam].missed++
+			}
+		}
+	}
+
+	var officerList []OfficerAttendanceSummary
+	for name, acc := range statsMap {
+		pct := 0.0
+		if acc.assigned > 0 {
+			pct = (float64(acc.executed) / float64(acc.assigned)) * 100.0
+		}
+		officerList = append(officerList, OfficerAttendanceSummary{
+			OfficerName:   name,
+			TotalAssigned: acc.assigned,
+			TotalExecuted: acc.executed,
+			TotalMissed:   acc.missed,
+			Percentage:    pct,
+		})
+	}
+
+	// Sort officers: highest percentage first, then most assigned, then name
+	sort.Slice(officerList, func(i, j int) bool {
+		if officerList[i].Percentage != officerList[j].Percentage {
+			return officerList[i].Percentage > officerList[j].Percentage
+		}
+		if officerList[i].TotalAssigned != officerList[j].TotalAssigned {
+			return officerList[i].TotalAssigned > officerList[j].TotalAssigned
+		}
+		return officerList[i].OfficerName < officerList[j].OfficerName
+	})
+
+	overallPct := 0.0
+	if totalDutiesAssigned > 0 {
+		overallPct = (float64(totalDutiesExecuted) / float64(totalDutiesAssigned)) * 100.0
+	}
+
+	return &MonthlyRecapData{
+		Year:         year,
+		Month:        month,
+		TotalDuties:  totalDutiesAssigned,
+		OverallPct:   overallPct,
+		OfficerStats: officerList,
+	}, nil
+}
+
+// GetMonthlyOfficerDetail returns all dates/prayers where the specified officer did not execute duty in a month.
+func (s *Storage) GetMonthlyOfficerDetail(year int, month int, officerName string) ([]MissedDutyDetail, int, int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	monthPrefix := fmt.Sprintf("%04d-%02d-%%", year, month)
+	target := strings.TrimSpace(officerName)
+
+	query := `
+	SELECT prayer_date, prayer_name, adzan_officer, imam_officer,
+	       adzan_executed, imam_executed, reporter_jid, updated_at
+	FROM duty_attendance_logs
+	WHERE prayer_date LIKE ?
+	  AND (LOWER(adzan_officer) = LOWER(?) OR LOWER(imam_officer) = LOWER(?))
+	ORDER BY prayer_date ASC, id ASC;
+	`
+	rows, err := s.db.Query(query, monthPrefix, target, target)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("failed to query officer details: %w", err)
+	}
+	defer rows.Close()
+
+	var missed []MissedDutyDetail
+	totalAssigned := 0
+	totalExecuted := 0
+
+	for rows.Next() {
+		var pDate, pName, adzan, imam, reporter, updatedStr string
+		var adzanExec, imamExec int
+
+		if err := rows.Scan(&pDate, &pName, &adzan, &imam, &adzanExec, &imamExec, &reporter, &updatedStr); err != nil {
+			return nil, 0, 0, err
+		}
+
+		updatedTime, _ := parseFlexibleTime(updatedStr)
+
+		if strings.EqualFold(adzan, target) {
+			totalAssigned++
+			if adzanExec == 1 {
+				totalExecuted++
+			} else {
+				missed = append(missed, MissedDutyDetail{
+					PrayerDate:  pDate,
+					PrayerName:  pName,
+					Role:        "Adzan",
+					ReporterJID: reporter,
+					UpdatedAt:   updatedTime,
+				})
+			}
+		}
+
+		if strings.EqualFold(imam, target) {
+			totalAssigned++
+			if imamExec == 1 {
+				totalExecuted++
+			} else {
+				missed = append(missed, MissedDutyDetail{
+					PrayerDate:  pDate,
+					PrayerName:  pName,
+					Role:        "Imam",
+					ReporterJID: reporter,
+					UpdatedAt:   updatedTime,
+				})
+			}
+		}
+	}
+
+	return missed, totalAssigned, totalExecuted, nil
+}
+

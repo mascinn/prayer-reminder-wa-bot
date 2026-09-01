@@ -7,6 +7,7 @@ import (
 
 	"remind-bot/internal/matrix"
 	"remind-bot/internal/phonebook"
+	"remind-bot/internal/storage"
 )
 
 var testMembers = []phonebook.Member{
@@ -101,3 +102,56 @@ func TestBuildFridayReminder(t *testing.T) {
 		t.Errorf("Message missing preparation content: %s", msg.Text)
 	}
 }
+
+func TestBuildMonthlyRecap(t *testing.T) {
+	recapData := &storage.MonthlyRecapData{
+		Year:        2026,
+		Month:       9,
+		TotalDuties: 60,
+		OverallPct:  92.5,
+		OfficerStats: []storage.OfficerAttendanceSummary{
+			{OfficerName: "Ahmad", TotalAssigned: 20, TotalExecuted: 18, TotalMissed: 2, Percentage: 90.0},
+			{OfficerName: "Zaid", TotalAssigned: 20, TotalExecuted: 20, TotalMissed: 0, Percentage: 100.0},
+		},
+	}
+
+	res := BuildMonthlyRecap(recapData)
+	if !strings.Contains(res, "REKAP KEAKTIFAN PETUGAS SHOLAT") {
+		t.Errorf("Output missing title: %s", res)
+	}
+	if !strings.Contains(res, "September 2026") {
+		t.Errorf("Output missing month/year: %s", res)
+	}
+	if !strings.Contains(res, "18/20 (90%) | 2x Tidak Menjalankan ⚠️") {
+		t.Errorf("Output missing Ahmad missed status: %s", res)
+	}
+	if !strings.Contains(res, "20/20 (100%) | 0x Tidak Menjalankan ✅") {
+		t.Errorf("Output missing Zaid perfect status: %s", res)
+	}
+}
+
+func TestBuildOfficerDetailRecap(t *testing.T) {
+	missed := []storage.MissedDutyDetail{
+		{
+			PrayerDate:  "2026-09-03",
+			PrayerName:  "Zhuhur",
+			Role:        "Adzan",
+			ReporterJID: "6281234567890@s.whatsapp.net",
+		},
+	}
+
+	res := BuildOfficerDetailRecap(2026, 9, "Ahmad", missed, 20, 19)
+	if !strings.Contains(res, "RINCIAN TIDAK MENJALANKAN TUGAS") {
+		t.Errorf("Output missing title: %s", res)
+	}
+	if !strings.Contains(res, "Petugas: *Ahmad*") {
+		t.Errorf("Output missing officer name: %s", res)
+	}
+	if !strings.Contains(res, "03/09/2026 - Zhuhur (Tugas: Adzan)") {
+		t.Errorf("Output missing date/prayer detail: %s", res)
+	}
+	if !strings.Contains(res, "Dilaporkan oleh: 6281234567890") {
+		t.Errorf("Output missing reporter: %s", res)
+	}
+}
+

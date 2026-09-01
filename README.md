@@ -23,13 +23,24 @@
 4. **Optional Friday Preparation Reminder:**
    - Triggered every Thursday night at `21:00 WIB` when `ENABLE_JUMAT_REMINDER=true`.
 
-5. **Interactive Diagnostic Commands:**
+5. **WhatsApp Reaction Attendance Tracking & Midnight Cut-Off:**
+   - Real-time attendance logging via message reactions:
+     - 👆 = Adzan tidak menjalankan tugas.
+     - 👇 = Imam tidak menjalankan tugas.
+     - ✌️ = Keduanya tidak menjalankan tugas.
+   - Bot automatically confirms recorded reports by reacting with `✅` (or removes reaction if un-reacted / canceled).
+   - **Midnight Cut-off:** Reports and adjustments are accepted until 23:59:59 WIB on the prayer execution date, then permanently locked.
+
+6. **Interactive Diagnostic & Recap Commands:**
    - `!ping` - Health check verification.
    - `!jid` - Displays the current chat / group JID for easy configuration.
    - `!jadwal` - Displays today's full schedule and assigned officers.
    - `!kultum` - Displays the 10-member Kultum queue with current pointer.
    - `!setkultum [1-10 / nama]` - Manually set/adjust the active Kultum speaker pointer.
-   - `!test [subuh|zhuhur|ashar|maghrib|isya|jumat]` - Test reminder dispatching immediately.
+   - `!rekap` - Displays monthly officer duty completion summary (Hadir/Menjalankan vs Tidak Menjalankan).
+   - `!rekap [bulan] [tahun]` - Displays monthly recap for a specific month (e.g. `!rekap 08 2026`).
+   - `!rekap detail [nama]` - Displays detailed missed duty dates and prayers for a specific officer.
+   - `!test [subuh|zhuhur|ashar|maghrib|isya|jumat|kantin]` - Test reminder dispatching immediately.
 
 ---
 

@@ -147,6 +147,115 @@ func TestStorageMembersAndDutySchedule(t *testing.T) {
 	}
 }
 
+func TestStorageDutyAttendanceAndReactions(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_duty.db")
+
+	store, err := NewStorage(dbPath, "", "")
+	if err != nil {
+		t.Fatalf("Failed to initialize storage: %v", err)
+	}
+	defer store.Close()
+
+	loc := time.FixedZone("WIB", 7*3600)
+	now := time.Date(2026, 9, 1, 12, 0, 0, 0, loc)
+	cutoff := time.Date(2026, 9, 1, 23, 59, 59, 0, loc)
+
+	msgID := "MSG-12345"
+	if err := store.SaveDutyRecord(msgID, "2026-09-01", "Zhuhur", "Ahmad", "Zaid", cutoff); err != nil {
+		t.Fatalf("SaveDutyRecord failed: %v", err)
+	}
+
+	// 1. Initial State: Both executed (1)
+	record, err := store.GetDutyRecordByMessageID(msgID)
+	if err != nil || record == nil {
+		t.Fatalf("GetDutyRecordByMessageID failed: %v", err)
+	}
+	if !record.AdzanExecuted || !record.ImamExecuted {
+		t.Errorf("Initial state should be executed=true, got Adzan=%v, Imam=%v", record.AdzanExecuted, record.ImamExecuted)
+	}
+
+	// 2. React 👆 (Adzan tidak menjalankan)
+	handled, shouldBotReact, err := store.UpdateDutyReaction(msgID, "👆", "62811111111@s.whatsapp.net", now)
+	if err != nil || !handled || !shouldBotReact {
+		t.Fatalf("UpdateDutyReaction (👆) error: handled=%v, shouldBotReact=%v, err=%v", handled, shouldBotReact, err)
+	}
+
+	record, _ = store.GetDutyRecordByMessageID(msgID)
+	if record.AdzanExecuted || !record.ImamExecuted {
+		t.Errorf("After 👆: want Adzan=false, Imam=true; got Adzan=%v, Imam=%v", record.AdzanExecuted, record.ImamExecuted)
+	}
+
+	// 3. React 👇 (Imam tidak menjalankan)
+	handled, shouldBotReact, err = store.UpdateDutyReaction(msgID, "👇", "62811111111@s.whatsapp.net", now)
+	if err != nil || !handled || !shouldBotReact {
+		t.Fatalf("UpdateDutyReaction (👇) error: handled=%v, shouldBotReact=%v, err=%v", handled, shouldBotReact, err)
+	}
+
+	record, _ = store.GetDutyRecordByMessageID(msgID)
+	if !record.AdzanExecuted || record.ImamExecuted {
+		t.Errorf("After 👇: want Adzan=true, Imam=false; got Adzan=%v, Imam=%v", record.AdzanExecuted, record.ImamExecuted)
+	}
+
+	// 4. React ✌️ (Keduanya tidak menjalankan)
+	handled, shouldBotReact, err = store.UpdateDutyReaction(msgID, "✌️", "62811111111@s.whatsapp.net", now)
+	if err != nil || !handled || !shouldBotReact {
+		t.Fatalf("UpdateDutyReaction (✌️) error: handled=%v, shouldBotReact=%v, err=%v", handled, shouldBotReact, err)
+	}
+
+	record, _ = store.GetDutyRecordByMessageID(msgID)
+	if record.AdzanExecuted || record.ImamExecuted {
+		t.Errorf("After ✌️: want Adzan=false, Imam=false; got Adzan=%v, Imam=%v", record.AdzanExecuted, record.ImamExecuted)
+	}
+
+	// 5. Un-react "" (Batal / Ralat -> Both Menjalankan)
+	handled, shouldBotReact, err = store.UpdateDutyReaction(msgID, "", "62811111111@s.whatsapp.net", now)
+	if err != nil || !handled || shouldBotReact {
+		t.Fatalf("UpdateDutyReaction (unreact) error: handled=%v, shouldBotReact=%v, err=%v", handled, shouldBotReact, err)
+	}
+
+	record, _ = store.GetDutyRecordByMessageID(msgID)
+	if !record.AdzanExecuted || !record.ImamExecuted {
+		t.Errorf("After un-react: want Adzan=true, Imam=true; got Adzan=%v, Imam=%v", record.AdzanExecuted, record.ImamExecuted)
+	}
+
+	// 6. Cutoff expiration (reaction after midnight should be ignored)
+	afterMidnight := time.Date(2026, 9, 2, 0, 1, 0, 0, loc)
+	handled, shouldBotReact, err = store.UpdateDutyReaction(msgID, "👆", "62811111111@s.whatsapp.net", afterMidnight)
+	if err != nil {
+		t.Fatalf("Unexpected error on past cutoff reaction: %v", err)
+	}
+	if handled {
+		t.Errorf("Reaction after cutoff should not be handled (isHandled=false)")
+	}
+
+	// 7. Monthly Recap & Details
+	// Add another duty for testing recap
+	msgID2 := "MSG-67890"
+	_ = store.SaveDutyRecord(msgID2, "2026-09-02", "Ashar", "Ahmad", "Bilal", cutoff.AddDate(0, 0, 1))
+	_, _, _ = store.UpdateDutyReaction(msgID2, "👆", "62822222222@s.whatsapp.net", now.AddDate(0, 0, 1)) // Ahmad missed adzan
+
+	recap, err := store.GetMonthlyRecap(2026, 9)
+	if err != nil {
+		t.Fatalf("GetMonthlyRecap failed: %v", err)
+	}
+	if recap.TotalDuties != 4 { // 2 duties x 2 officers = 4
+		t.Errorf("Recap TotalDuties = %d; want 4", recap.TotalDuties)
+	}
+
+	// Check officer detail for Ahmad
+	missed, assigned, executed, err := store.GetMonthlyOfficerDetail(2026, 9, "Ahmad")
+	if err != nil {
+		t.Fatalf("GetMonthlyOfficerDetail failed: %v", err)
+	}
+	if assigned != 2 || executed != 1 || len(missed) != 1 {
+		t.Errorf("Ahmad stats: assigned=%d, executed=%d, missedCount=%d; want 2, 1, 1", assigned, executed, len(missed))
+	}
+	if len(missed) > 0 && missed[0].PrayerName != "Ashar" {
+		t.Errorf("Ahmad missed prayer = %s; want Ashar", missed[0].PrayerName)
+	}
+}
+
 func TestStoragePersistenceAcrossReopen(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "persist.db")
@@ -181,3 +290,4 @@ func TestStoragePersistenceAcrossReopen(t *testing.T) {
 		t.Errorf("GetKultumIndex after reopen = %d; want 4", idx)
 	}
 }
+
