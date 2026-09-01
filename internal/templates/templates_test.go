@@ -155,3 +155,69 @@ func TestBuildOfficerDetailRecap(t *testing.T) {
 	}
 }
 
+func TestBuildMenuGuide(t *testing.T) {
+	menu := BuildMenuGuide()
+	if !strings.Contains(menu, "PANDUAN PERINTAH BOT MASJID AL-WASII") {
+		t.Errorf("Menu missing header title: %s", menu)
+	}
+	if !strings.Contains(menu, "!jadwal") || !strings.Contains(menu, "!matriks") || !strings.Contains(menu, "!rekap") {
+		t.Errorf("Menu missing key commands: %s", menu)
+	}
+}
+
+func TestBuildSinglePrayerScheduleView(t *testing.T) {
+	reg := phonebook.NewRegistryFromMembers(testMembers)
+	loc := time.FixedZone("WIB", 7*3600)
+	now := time.Date(2026, 9, 1, 12, 0, 0, 0, loc)
+
+	duty := matrix.DutyAssignment{Adzan: "Ahmad", Imam: "Zaid"}
+	msg := BuildSinglePrayerScheduleView(reg, now, matrix.PrayerZhuhur, "12:03", duty, "")
+
+	if !strings.Contains(msg.Text, "JADWAL SHOLAT ZHUHUR") {
+		t.Errorf("Single prayer view missing title: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "12:03 WIB") {
+		t.Errorf("Single prayer view missing adzan time: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "@6281100000001 (Ahmad)") {
+		t.Errorf("Single prayer view missing Ahmad tag: %s", msg.Text)
+	}
+}
+
+func TestBuildWeeklyMatrixView(t *testing.T) {
+	matrixMap := matrix.GetFullWeeklyMatrix()
+	res := BuildWeeklyMatrixView(matrixMap)
+
+	if !strings.Contains(res, "MATRIKS JADWAL TUGAS MINGGUAN") {
+		t.Errorf("Weekly matrix missing header: %s", res)
+	}
+	if !strings.Contains(res, "SENIN") || !strings.Contains(res, "JUM'AT") {
+		t.Errorf("Weekly matrix missing day sections: %s", res)
+	}
+}
+
+func TestBuildOfficerDutiesView(t *testing.T) {
+	reg := phonebook.NewRegistryFromMembers(testMembers)
+	loc := time.FixedZone("WIB", 7*3600)
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, loc)
+
+	shifts := []matrix.OfficerShift{
+		{Weekday: time.Monday, DayName: "Senin", Prayer: matrix.PrayerSubuh, Role: "Adzan"},
+		{Weekday: time.Tuesday, DayName: "Selasa", Prayer: matrix.PrayerZhuhur, Role: "Imam"},
+	}
+	kultumDays := []int{1, 11, 21}
+
+	msg := BuildOfficerDutiesView(reg, "Ahmad", shifts, kultumDays, now)
+
+	if !strings.Contains(msg.Text, "JADWAL TUGAS: AHMAD") {
+		t.Errorf("Officer duties missing title: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "Subuh (Adzan)") {
+		t.Errorf("Officer duties missing Subuh shift: %s", msg.Text)
+	}
+	if !strings.Contains(msg.Text, "Tanggal: 1, 11, 21") {
+		t.Errorf("Officer duties missing kultum days: %s", msg.Text)
+	}
+}
+
+

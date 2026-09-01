@@ -188,6 +188,7 @@ func TestPrayerNormalization(t *testing.T) {
 }
 
 func TestLoadScheduleFromJSON(t *testing.T) {
+	defer SetActiveSchedule(DefaultScheduleConfig)
 	jsonStr := `{
 		"kultum_queue": ["Ali", "Umar"],
 		"weekly_matrix": {
@@ -209,3 +210,50 @@ func TestLoadScheduleFromJSON(t *testing.T) {
 		t.Errorf("Monday Subuh Adzan = %q; want Ali", sched.Subuh.Adzan)
 	}
 }
+
+func TestParseIndonesianWeekday(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected time.Weekday
+		valid    bool
+	}{
+		{"senin", time.Monday, true},
+		{"Selasa", time.Tuesday, true},
+		{"Rabu", time.Wednesday, true},
+		{"kamis", time.Thursday, true},
+		{"jumat", time.Friday, true},
+		{"jum'at", time.Friday, true},
+		{"sabtu", time.Saturday, true},
+		{"minggu", time.Sunday, true},
+		{"ahad", time.Sunday, true},
+		{"invalid", time.Sunday, false},
+	}
+
+	for _, tc := range tests {
+		wd, ok := ParseIndonesianWeekday(tc.input)
+		if ok != tc.valid {
+			t.Errorf("ParseIndonesianWeekday(%q) valid = %v; want %v", tc.input, ok, tc.valid)
+		}
+		if ok && wd != tc.expected {
+			t.Errorf("ParseIndonesianWeekday(%q) = %v; want %v", tc.input, wd, tc.expected)
+		}
+	}
+}
+
+func TestGetOfficerWeeklyDutiesAndKultum(t *testing.T) {
+	SetActiveSchedule(DefaultScheduleConfig)
+
+	// Test finding duties for Ahmad
+	shifts := GetOfficerWeeklyDuties("Ahmad")
+	if len(shifts) == 0 {
+		t.Errorf("GetOfficerWeeklyDuties('Ahmad') returned 0 shifts; want > 0")
+	}
+
+	// Test finding Kultum days for Ahmad in September (Day 1 resets to Ahmad/index 0)
+	kultumDays := GetOfficerKultumDaysInMonth("Ahmad", 9, 2026)
+	if len(kultumDays) == 0 {
+		t.Errorf("GetOfficerKultumDaysInMonth('Ahmad') returned 0 days; want > 0")
+	}
+}
+
+

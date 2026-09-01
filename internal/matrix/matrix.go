@@ -371,3 +371,122 @@ func NormalizePrayerName(s string) PrayerName {
 		return PrayerName(s)
 	}
 }
+
+// OfficerShift describes a single assigned duty shift in the weekly matrix.
+type OfficerShift struct {
+	Weekday time.Weekday
+	DayName string
+	Prayer  PrayerName
+	Role    string // "Adzan" or "Imam"
+}
+
+// ParseIndonesianWeekday parses an Indonesian weekday name (e.g. "senin", "selasa", "rabu", "kamis", "jumat", "jum'at", "sabtu", "minggu").
+func ParseIndonesianWeekday(s string) (time.Weekday, bool) {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	lower = strings.ReplaceAll(lower, "'", "")
+	switch lower {
+	case "senin", "mon", "monday":
+		return time.Monday, true
+	case "selasa", "tue", "tuesday":
+		return time.Tuesday, true
+	case "rabu", "wed", "wednesday":
+		return time.Wednesday, true
+	case "kamis", "thu", "thursday":
+		return time.Thursday, true
+	case "jumat", "fri", "friday":
+		return time.Friday, true
+	case "sabtu", "sat", "saturday":
+		return time.Saturday, true
+	case "minggu", "ahad", "sun", "sunday":
+		return time.Sunday, true
+	default:
+		return time.Sunday, false
+	}
+}
+
+// GetFullWeeklyMatrix returns the full day-by-day schedule for Monday through Sunday.
+func GetFullWeeklyMatrix() map[time.Weekday]DaySchedule {
+	activeScheduleMu.RLock()
+	defer activeScheduleMu.RUnlock()
+	sc := activeSchedule
+	if sc == nil {
+		sc = DefaultScheduleConfig
+	}
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	result := make(map[time.Weekday]DaySchedule)
+	for k, v := range sc.matrixMap {
+		result[k] = v
+	}
+	return result
+}
+
+// GetOfficerWeeklyDuties searches the weekly matrix for all duties assigned to the given officer name.
+func GetOfficerWeeklyDuties(officerName string) []OfficerShift {
+	matrixMap := GetFullWeeklyMatrix()
+	target := strings.TrimSpace(strings.ToLower(officerName))
+	if target == "" {
+		return nil
+	}
+
+	days := []time.Weekday{
+		time.Monday, time.Tuesday, time.Wednesday, time.Thursday,
+		time.Friday, time.Saturday, time.Sunday,
+	}
+	prayers := []PrayerName{
+		PrayerSubuh, PrayerZhuhur, PrayerAshar, PrayerMaghrib, PrayerIsya,
+	}
+
+	var shifts []OfficerShift
+	for _, wd := range days {
+		sched, ok := matrixMap[wd]
+		if !ok {
+			continue
+		}
+		for _, p := range prayers {
+			duty := sched.GetDuty(p)
+			if duty.Skipped {
+				continue
+			}
+			if strings.EqualFold(strings.TrimSpace(duty.Adzan), target) {
+				shifts = append(shifts, OfficerShift{
+					Weekday: wd,
+					DayName: sched.DayName,
+					Prayer:  p,
+					Role:    "Adzan",
+				})
+			}
+			if strings.EqualFold(strings.TrimSpace(duty.Imam), target) {
+				shifts = append(shifts, OfficerShift{
+					Weekday: wd,
+					DayName: sched.DayName,
+					Prayer:  p,
+					Role:    "Imam",
+				})
+			}
+		}
+	}
+	return shifts
+}
+
+// GetOfficerKultumDaysInMonth returns the calendar days of the specified month/year where the officer gives Kultum.
+func GetOfficerKultumDaysInMonth(officerName string, month int, year int) []int {
+	target := strings.TrimSpace(strings.ToLower(officerName))
+	if target == "" {
+		return nil
+	}
+
+	t := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	totalDays := DaysInMonth(t)
+
+	var days []int
+	for d := 1; d <= totalDays; d++ {
+		sp := GetKultumSpeakerForDay(d)
+		if strings.EqualFold(strings.TrimSpace(sp), target) {
+			days = append(days, d)
+		}
+	}
+	return days
+}
+

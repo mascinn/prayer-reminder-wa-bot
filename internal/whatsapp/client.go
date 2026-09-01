@@ -362,6 +362,13 @@ func (b *Bot) handleIncomingMessage(evt *events.Message) {
 	b.cmdMu.RUnlock()
 
 	if !exists {
+		if len(cmdName) > 0 {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				_ = b.SendSimpleMessage(ctx, evt.Info.Chat, fmt.Sprintf("⚠️ Perintah `!%s` tidak dikenali.\n\nKetik `!menu` untuk melihat daftar perintah yang tersedia.", cmdName))
+			}()
+		}
 		return
 	}
 

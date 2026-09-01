@@ -363,7 +363,34 @@ func (s *Scheduler) RunCanteenReminder() {
 	}
 }
 
+func (s *Scheduler) getDayPrayerTimes(t time.Time) map[matrix.PrayerName]string {
+	rawTimes := make(map[matrix.PrayerName]string)
+	parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, t)
+	if err == nil && parsed != nil {
+		rawTimes[matrix.PrayerSubuh] = parsed.Subuh.Format("15:04")
+		rawTimes[matrix.PrayerZhuhur] = parsed.Zhuhur.Format("15:04")
+		rawTimes[matrix.PrayerAshar] = parsed.Ashar.Format("15:04")
+		rawTimes[matrix.PrayerMaghrib] = parsed.Maghrib.Format("15:04")
+		rawTimes[matrix.PrayerIsya] = parsed.Isya.Format("15:04")
+	} else {
+		rawTimes[matrix.PrayerSubuh] = "04:45"
+		rawTimes[matrix.PrayerZhuhur] = "12:05"
+		rawTimes[matrix.PrayerAshar] = "15:20"
+		rawTimes[matrix.PrayerMaghrib] = "18:05"
+		rawTimes[matrix.PrayerIsya] = "19:15"
+	}
+	return rawTimes
+}
+
 func (s *Scheduler) registerCommands() {
+	// !menu / !help / !bantuan
+	menuHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		return templates.BuildMenuGuide(), nil, nil
+	}
+	s.bot.RegisterCommand("menu", menuHandler)
+	s.bot.RegisterCommand("help", menuHandler)
+	s.bot.RegisterCommand("bantuan", menuHandler)
+
 	// !ping
 	s.bot.RegisterCommand("ping", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
 		return "🏓 *Pong!*\nBot Pengingat Sholat & Kultum Masjid Al-Wasii UNILA aktif 24/7.", nil, nil
@@ -394,31 +421,139 @@ func (s *Scheduler) registerCommands() {
 	s.bot.RegisterCommand("setgrup", setGroupHandler)
 	s.bot.RegisterCommand("settarget", setGroupHandler)
 
-	// !jadwal
+	// Single prayer handler creator
+	singlePrayerHandler := func(prayer matrix.PrayerName) whatsapp.CommandHandlerFunc {
+		return func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+			now := time.Now().In(s.cfg.Location)
+			rawTimes := s.getDayPrayerTimes(now)
+			sched := matrix.GetDaySchedule(now.Weekday())
+			duty := sched.GetDuty(prayer)
+			speaker := ""
+			if prayer == matrix.PrayerSubuh {
+				speaker = matrix.GetKultumSpeakerForDay(now.Day())
+			}
+			msg := templates.BuildSinglePrayerScheduleView(s.phonebook, now, prayer, rawTimes[prayer], duty, speaker)
+			return "", &msg, nil
+		}
+	}
+
+	// Register single prayer commands
+	s.bot.RegisterCommand("subuh", singlePrayerHandler(matrix.PrayerSubuh))
+	s.bot.RegisterCommand("fajr", singlePrayerHandler(matrix.PrayerSubuh))
+
+	s.bot.RegisterCommand("zhuhur", singlePrayerHandler(matrix.PrayerZhuhur))
+	s.bot.RegisterCommand("dzuhur", singlePrayerHandler(matrix.PrayerZhuhur))
+	s.bot.RegisterCommand("dhuhur", singlePrayerHandler(matrix.PrayerZhuhur))
+	s.bot.RegisterCommand("zuhur", singlePrayerHandler(matrix.PrayerZhuhur))
+	s.bot.RegisterCommand("dhuhr", singlePrayerHandler(matrix.PrayerZhuhur))
+
+	s.bot.RegisterCommand("ashar", singlePrayerHandler(matrix.PrayerAshar))
+	s.bot.RegisterCommand("asar", singlePrayerHandler(matrix.PrayerAshar))
+	s.bot.RegisterCommand("asr", singlePrayerHandler(matrix.PrayerAshar))
+
+	s.bot.RegisterCommand("maghrib", singlePrayerHandler(matrix.PrayerMaghrib))
+	s.bot.RegisterCommand("magrib", singlePrayerHandler(matrix.PrayerMaghrib))
+
+	s.bot.RegisterCommand("isya", singlePrayerHandler(matrix.PrayerIsya))
+	s.bot.RegisterCommand("isya'", singlePrayerHandler(matrix.PrayerIsya))
+	s.bot.RegisterCommand("isha", singlePrayerHandler(matrix.PrayerIsya))
+
+	// !besok (Jadwal sholat & kultum besok)
+	besokHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		now := time.Now().In(s.cfg.Location)
+		tomorrow := now.AddDate(0, 0, 1)
+		rawTimes := s.getDayPrayerTimes(tomorrow)
+		sched := matrix.GetDaySchedule(tomorrow.Weekday())
+		speaker := matrix.GetKultumSpeakerForDay(tomorrow.Day())
+
+		msg := templates.BuildJadwalPreview(s.phonebook, tomorrow, rawTimes, sched, speaker)
+		return "", &msg, nil
+	}
+	s.bot.RegisterCommand("besok", besokHandler)
+
+	// !jadwal (Harian / Hari Tertentu / Sholat Tertentu)
 	s.bot.RegisterCommand("jadwal", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
 		now := time.Now().In(s.cfg.Location)
-		parsed, _, err := s.apiClient.FetchJadwal(s.cfg.Location, now)
-		rawTimes := make(map[matrix.PrayerName]string)
-		if err == nil && parsed != nil {
-			rawTimes[matrix.PrayerSubuh] = parsed.Subuh.Format("15:04")
-			rawTimes[matrix.PrayerZhuhur] = parsed.Zhuhur.Format("15:04")
-			rawTimes[matrix.PrayerAshar] = parsed.Ashar.Format("15:04")
-			rawTimes[matrix.PrayerMaghrib] = parsed.Maghrib.Format("15:04")
-			rawTimes[matrix.PrayerIsya] = parsed.Isya.Format("15:04")
-		} else {
-			rawTimes[matrix.PrayerSubuh] = "04:45"
-			rawTimes[matrix.PrayerZhuhur] = "12:05"
-			rawTimes[matrix.PrayerAshar] = "15:20"
-			rawTimes[matrix.PrayerMaghrib] = "18:05"
-			rawTimes[matrix.PrayerIsya] = "19:15"
+
+		if len(args) > 0 {
+			argLower := strings.ToLower(args[0])
+
+			// 1. !jadwal besok
+			if argLower == "besok" || argLower == "tomorrow" {
+				return besokHandler(ctx, chatJID, senderJID, args[1:])
+			}
+
+			// 2. !jadwal [hari] (misal: !jadwal senin, !jadwal jumat)
+			if wd, ok := matrix.ParseIndonesianWeekday(argLower); ok {
+				sched := matrix.GetDaySchedule(wd)
+				// Preview template for specific weekday
+				targetDate := now
+				for targetDate.Weekday() != wd {
+					targetDate = targetDate.AddDate(0, 0, 1)
+				}
+				rawTimes := s.getDayPrayerTimes(targetDate)
+				speaker := matrix.GetKultumSpeakerForDay(targetDate.Day())
+				msg := templates.BuildJadwalPreview(s.phonebook, targetDate, rawTimes, sched, speaker)
+				return "", &msg, nil
+			}
+
+			// 3. !jadwal [sholat] (misal: !jadwal subuh, !jadwal zhuhur)
+			normalizedPrayer := matrix.NormalizePrayerName(argLower)
+			if normalizedPrayer == matrix.PrayerSubuh || normalizedPrayer == matrix.PrayerZhuhur ||
+				normalizedPrayer == matrix.PrayerAshar || normalizedPrayer == matrix.PrayerMaghrib ||
+				normalizedPrayer == matrix.PrayerIsya {
+				handler := singlePrayerHandler(normalizedPrayer)
+				return handler(ctx, chatJID, senderJID, args[1:])
+			}
 		}
 
+		// Default: Today's schedule
+		rawTimes := s.getDayPrayerTimes(now)
 		daySchedule := matrix.GetDaySchedule(now.Weekday())
 		speaker := matrix.GetKultumSpeakerForDay(now.Day())
 
 		msg := templates.BuildJadwalPreview(s.phonebook, now, rawTimes, daySchedule, speaker)
 		return "", &msg, nil
 	})
+
+	// !matriks / !jadwallengkap / !jadwalminggu
+	matrixHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		weekly := matrix.GetFullWeeklyMatrix()
+		return templates.BuildWeeklyMatrixView(weekly), nil, nil
+	}
+	s.bot.RegisterCommand("matriks", matrixHandler)
+	s.bot.RegisterCommand("matrix", matrixHandler)
+	s.bot.RegisterCommand("jadwallengkap", matrixHandler)
+	s.bot.RegisterCommand("jadwalminggu", matrixHandler)
+
+	// !tugas [nama] / !tugassaya / !jadwalsaya
+	tugasHandler := func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {
+		now := time.Now().In(s.cfg.Location)
+		var officerName string
+
+		if len(args) > 0 {
+			officerName = strings.Join(args, " ")
+		} else {
+			// Check if sender's phone is in phonebook
+			senderPhone := senderJID.User
+			if m, ok := s.phonebook.FindByPhone(senderPhone); ok {
+				officerName = m.DisplayName
+			}
+		}
+
+		if strings.TrimSpace(officerName) == "" {
+			return "ℹ️ *Format Perintah Tugas Pribadi:*\n• `!tugas [nama]` (Contoh: `!tugas Ahmad`)\n• Atau ketik `!tugas` langsung jika nomor Anda sudah terdaftar di database bot.", nil, nil
+		}
+
+		shifts := matrix.GetOfficerWeeklyDuties(officerName)
+		kultumDays := matrix.GetOfficerKultumDaysInMonth(officerName, int(now.Month()), now.Year())
+
+		msg := templates.BuildOfficerDutiesView(s.phonebook, officerName, shifts, kultumDays, now)
+		return "", &msg, nil
+	}
+	s.bot.RegisterCommand("tugas", tugasHandler)
+	s.bot.RegisterCommand("tugassaya", tugasHandler)
+	s.bot.RegisterCommand("jadwalsaya", tugasHandler)
 
 	// !kultum
 	s.bot.RegisterCommand("kultum", func(ctx context.Context, chatJID, senderJID types.JID, args []string) (string, *templates.ReminderMessage, error) {

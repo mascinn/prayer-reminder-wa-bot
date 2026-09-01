@@ -446,3 +446,198 @@ func BuildOfficerDetailRecap(year int, month int, officerName string, missed []s
 	return sb.String()
 }
 
+// BuildMenuGuide formats the comprehensive bot command guide for !menu / !help.
+func BuildMenuGuide() string {
+	return `🕌 *PANDUAN PERINTAH BOT MASJID AL-WASII*
+Layanan Pengingat & Rekapitulasi Otomatis
+
+📅 *INFORMASI JADWAL:*
+• ` + "`!jadwal`" + ` : Jadwal semua sholat hari ini & jam adzan
+• ` + "`!jadwal [hari]`" + ` : Jadwal hari tertentu (misal: ` + "`!jadwal senin`" + `)
+• ` + "`!besok`" + ` : Jadwal sholat & petugas esok hari
+• ` + "`!subuh`, `!zhuhur`, `!ashar`, `!maghrib`, `!isya`" + ` : Cek petugas sholat hari ini
+• ` + "`!matriks`" + ` : Matriks jadwal lengkap 1 pekan (Senin - Minggu)
+• ` + "`!tugas [nama]`" + ` : Cek jadwal tugas pribadi dalam sepekan & kultum
+• ` + "`!kultum`" + ` : Urutan giliran kultum Subuh & penceramah besok
+• ` + "`!kantin`" + ` : Jadwal piket penarikan infaq kantin
+
+📊 *REKAP KEAKTIFAN:*
+• ` + "`!rekap`" + ` : Rekapitulasi keaktifan petugas bulan ini
+• ` + "`!rekap [bln] [thn]`" + ` : Rekap bulan tertentu (misal: ` + "`!rekap 08 2026`" + `)
+• ` + "`!rekap detail [nama]`" + ` : Rincian sholat yang tidak dijalankan
+
+⚙️ *SISTEM & PENGUJIAN:*
+• ` + "`!menu`" + ` : Menampilkan menu panduan ini
+• ` + "`!ping`" + ` : Cek status & koneksi bot
+• ` + "`!jid`" + ` : Cek ID obrolan WhatsApp saat ini
+• ` + "`!setgrup`" + ` : Setel grup ini sebagai target pengingat
+• ` + "`!test [target]`" + ` : Uji coba kirim pesan pengingat
+  └ _Pilihan: subuh, zhuhur, ashar, maghrib, isya, jumat, kantin_
+
+━━━━━━━━━━━━━━━━━
+ℹ️ *Konfirmasi Kehadiran:*
+React pesan reminder dengan 👆 (Adzan), 👇 (Imam), atau ✌️ (Keduanya) jika petugas tidak menjalankan tugas (s.d 23:59 WIB).`
+}
+
+// BuildSinglePrayerScheduleView formats the view for single prayer queries like !subuh, !zhuhur, etc.
+func BuildSinglePrayerScheduleView(
+	reg *phonebook.Registry,
+	date time.Time,
+	prayer matrix.PrayerName,
+	prayerTimeStr string,
+	duty matrix.DutyAssignment,
+	kultumSpeaker string,
+) ReminderMessage {
+	var jids []string
+
+	dateStr := matrix.FormatIndonesianDate(date)
+	if prayerTimeStr == "" {
+		prayerTimeStr = "-"
+	}
+
+	var icon string
+	switch prayer {
+	case matrix.PrayerSubuh:
+		icon = "🌅"
+	case matrix.PrayerZhuhur:
+		icon = "☀️"
+	case matrix.PrayerAshar:
+		icon = "⛅"
+	case matrix.PrayerMaghrib:
+		icon = "🌇"
+	case matrix.PrayerIsya:
+		icon = "🌌"
+	default:
+		icon = "🕌"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s *JADWAL SHOLAT %s*\n", icon, strings.ToUpper(string(prayer))))
+	sb.WriteString(fmt.Sprintf("📅 %s\n", dateStr))
+
+	if duty.Skipped && prayer == matrix.PrayerZhuhur {
+		sb.WriteString("⏰ Waktu Adzan : Sesuai Sholat Jum'at\n\n")
+		sb.WriteString("🕌 *Petugas:* Sholat Jum'at Berjamaah\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("⏰ Waktu Adzan : %s WIB\n\n", prayerTimeStr))
+		sb.WriteString("Petugas:\n")
+		adzanTag := formatOfficerTag(reg, duty.Adzan, &jids)
+		imamTag := formatOfficerTag(reg, duty.Imam, &jids)
+		sb.WriteString(fmt.Sprintf("📢 Adzan : %s\n", adzanTag))
+		sb.WriteString(fmt.Sprintf("👳 Imam  : %s\n", imamTag))
+		if prayer == matrix.PrayerSubuh && kultumSpeaker != "" {
+			kultumTag := formatOfficerTag(reg, kultumSpeaker, &jids)
+			sb.WriteString(fmt.Sprintf("🎙️ Kultum : %s\n", kultumTag))
+		}
+	}
+
+	sb.WriteString("\n_Waktu sholat masuk ±15 menit sebelum adzan._")
+
+	return ReminderMessage{
+		Text:         sb.String(),
+		MentionedJID: uniqueJIDs(jids),
+	}
+}
+
+// BuildWeeklyMatrixView formats the full 7-day duty schedule matrix.
+func BuildWeeklyMatrixView(matrixMap map[time.Weekday]matrix.DaySchedule) string {
+	days := []struct {
+		wd   time.Weekday
+		name string
+	}{
+		{time.Monday, "SENIN"},
+		{time.Tuesday, "SELASA"},
+		{time.Wednesday, "RABU"},
+		{time.Thursday, "KAMIS"},
+		{time.Friday, "JUM'AT"},
+		{time.Saturday, "SABTU"},
+		{time.Sunday, "MINGGU"},
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📋 *MATRIKS JADWAL TUGAS MINGGUAN*\n")
+	sb.WriteString("Masjid Al-Wasii - UNILA\n")
+	sb.WriteString("────────────────────────\n")
+
+	for _, d := range days {
+		sched, ok := matrixMap[d.wd]
+		if !ok {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("🗓️ *%s*\n", d.name))
+		sb.WriteString(fmt.Sprintf("  • Subuh   : %s (Adzan) / %s (Imam)\n", sched.Subuh.Adzan, sched.Subuh.Imam))
+		if sched.Zhuhur.Skipped {
+			sb.WriteString("  • Zhuhur  : Sholat Jum'at\n")
+		} else {
+			sb.WriteString(fmt.Sprintf("  • Zhuhur  : %s (Adzan) / %s (Imam)\n", sched.Zhuhur.Adzan, sched.Zhuhur.Imam))
+		}
+		sb.WriteString(fmt.Sprintf("  • Ashar   : %s (Adzan) / %s (Imam)\n", sched.Ashar.Adzan, sched.Ashar.Imam))
+		sb.WriteString(fmt.Sprintf("  • Maghrib : %s (Adzan) / %s (Imam)\n", sched.Maghrib.Adzan, sched.Maghrib.Imam))
+		sb.WriteString(fmt.Sprintf("  • Isya    : %s (Adzan) / %s (Imam)\n\n", sched.Isya.Adzan, sched.Isya.Imam))
+	}
+
+	sb.WriteString("────────────────────────\n")
+	sb.WriteString("_Ketik `!jadwal` untuk melihat jadwal & jam adzan hari ini._")
+
+	return sb.String()
+}
+
+// BuildOfficerDutiesView formats individual assigned duty shifts and Kultum speaker dates.
+func BuildOfficerDutiesView(reg *phonebook.Registry, officerName string, shifts []matrix.OfficerShift, kultumDays []int, now time.Time) ReminderMessage {
+	var jids []string
+	tag := formatOfficerTag(reg, officerName, &jids)
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("👤 *JADWAL TUGAS: %s*\n", strings.ToUpper(officerName)))
+	sb.WriteString(fmt.Sprintf("Tag: %s\n", tag))
+	sb.WriteString(fmt.Sprintf("Periode: %s\n", matrix.FormatIndonesianMonthYear(now)))
+	sb.WriteString("────────────────────────\n")
+
+	if len(shifts) == 0 && len(kultumDays) == 0 {
+		sb.WriteString(fmt.Sprintf("_Tidak ditemukan jadwal tugas mingguan maupun kultum atas nama *%s*._\n", officerName))
+		return ReminderMessage{
+			Text:         sb.String(),
+			MentionedJID: uniqueJIDs(jids),
+		}
+	}
+
+	if len(shifts) > 0 {
+		sb.WriteString("📋 *Tugas Sholat Mingguan:*\n")
+		shiftsByDay := make(map[string][]string)
+		dayOrder := []string{"Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"}
+
+		for _, s := range shifts {
+			shiftsByDay[s.DayName] = append(shiftsByDay[s.DayName], fmt.Sprintf("%s (%s)", s.Prayer, s.Role))
+		}
+
+		for _, day := range dayOrder {
+			if items, exists := shiftsByDay[day]; exists {
+				sb.WriteString(fmt.Sprintf("• *%s* : %s\n", day, strings.Join(items, ", ")))
+			}
+		}
+	} else {
+		sb.WriteString("📋 *Tugas Sholat Mingguan:* _Tidak ada_\n")
+	}
+
+	sb.WriteString("\n")
+	if len(kultumDays) > 0 {
+		sb.WriteString("🎙️ *Jadwal Kultum Subuh Bulan Ini:*\n")
+		var dayStrs []string
+		for _, d := range kultumDays {
+			dayStrs = append(dayStrs, fmt.Sprintf("%d", d))
+		}
+		sb.WriteString(fmt.Sprintf("• Tanggal: %s %s\n", strings.Join(dayStrs, ", "), matrix.FormatIndonesianMonthYear(now)))
+	} else {
+		sb.WriteString("🎙️ *Jadwal Kultum Subuh Bulan Ini:* _Tidak ada_\n")
+	}
+
+	sb.WriteString("────────────────────────\n")
+	sb.WriteString(fmt.Sprintf("_Ketik `!rekap detail %s` untuk melihat catatan keaktifan._", officerName))
+
+	return ReminderMessage{
+		Text:         sb.String(),
+		MentionedJID: uniqueJIDs(jids),
+	}
+}
+
+

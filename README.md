@@ -31,16 +31,27 @@
    - Bot automatically confirms recorded reports by reacting with `✅` (or removes reaction if un-reacted / canceled).
    - **Midnight Cut-off:** Reports and adjustments are accepted until 23:59:59 WIB on the prayer execution date, then permanently locked.
 
-6. **Interactive Diagnostic & Recap Commands:**
-   - `!ping` - Health check verification.
-   - `!jid` - Displays the current chat / group JID for easy configuration.
-   - `!jadwal` - Displays today's full schedule and assigned officers.
-   - `!kultum` - Displays the 10-member Kultum queue with current pointer.
-   - `!setkultum [1-10 / nama]` - Manually set/adjust the active Kultum speaker pointer.
-   - `!rekap` - Displays monthly officer duty completion summary (Hadir/Menjalankan vs Tidak Menjalankan).
-   - `!rekap [bulan] [tahun]` - Displays monthly recap for a specific month (e.g. `!rekap 08 2026`).
-   - `!rekap detail [nama]` - Displays detailed missed duty dates and prayers for a specific officer.
-   - `!test [subuh|zhuhur|ashar|maghrib|isya|jumat|kantin]` - Test reminder dispatching immediately.
+6. **Interactive WhatsApp Commands:**
+   - 📖 **Menu & Bantuan:**
+     - `!menu` *(alias: `!help`, `!bantuan`)* - Menampilkan panduan lengkap seluruh perintah bot.
+   - 📅 **Informasi Jadwal:**
+     - `!jadwal` - Menampilkan jadwal semua waktu sholat hari ini & jam adzan real-time.
+     - `!jadwal [hari]` - Menampilkan jadwal sholat pada hari tertentu (misal: `!jadwal senin`).
+     - `!besok` - Menampilkan jadwal sholat & petugas esok hari.
+     - `!subuh`, `!zhuhur`, `!ashar`, `!maghrib`, `!isya` - Cek langsung petugas & jam sholat hari ini.
+     - `!matriks` *(alias: `!jadwallengkap`, `!jadwalminggu`)* - Menampilkan tabel matriks tugas 1 pekan penuh (Senin - Minggu).
+     - `!tugas [nama]` *(alias: `!tugassaya`, `!jadwalsaya`)* - Menampilkan jadwal tugas pribadi dalam sepekan & giliran kultum.
+     - `!kultum` - Menampilkan 10 daftar urutan penceramah kultum Subuh & giliran besok.
+     - `!kantin` *(alias: `!jadwalkantin`)* - Menampilkan jadwal piket penarikan infaq kantin.
+   - 📊 **Rekapitulasi Keaktifan:**
+     - `!rekap` - Rekapitulasi keaktifan petugas bulan berjalan.
+     - `!rekap [bulan] [tahun]` - Rekapitulasi bulan tertentu (contoh: `!rekap 08 2026`).
+     - `!rekap detail [nama]` - Rincian tanggal & sholat yang tidak dijalankan oleh petugas tertentu.
+   - ⚙️ **Sistem & Pengujian:**
+     - `!ping` - Cek status kesehatan & koneksi bot.
+     - `!jid` - Menampilkan info ID chat WhatsApp & status target grup pengingat.
+     - `!setgrup` *(alias: `!settarget`)* - Menyetel grup aktif saat ini sebagai target pengingat.
+     - `!test [target]` - Uji coba kirim pesan pengingat langsung (`subuh`, `zhuhur`, `ashar`, `maghrib`, `isya`, `jumat`, `kantin`).
 
 ---
 

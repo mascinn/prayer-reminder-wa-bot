@@ -186,6 +186,22 @@ func (r *Registry) GetAllMembers() []Member {
 	return r.members
 }
 
+// FindByPhone looks up a member by any of their registered phone numbers or WhatsApp user ID.
+func (r *Registry) FindByPhone(phone string) (Member, bool) {
+	cleaned := cleanPhone(phone)
+	if cleaned == "" {
+		return Member{}, false
+	}
+	for _, m := range r.members {
+		for _, p := range m.AllPhones() {
+			if cleanPhone(p) == cleaned {
+				return m, true
+			}
+		}
+	}
+	return Member{}, false
+}
+
 func cleanPhone(phone string) string {
 	digits := ""
 	for _, ch := range strings.TrimSpace(phone) {
