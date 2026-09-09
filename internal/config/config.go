@@ -15,7 +15,8 @@ import (
 type Config struct {
 	TargetJID           string
 	DBPath              string
-	EnableJumatReminder bool
+	EnableJumatReminder   bool
+	EnableCanteenReminder bool
 	Timezone            string
 	Location            *time.Location
 	CityID              string
@@ -51,6 +52,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	enableJumat, _ := strconv.ParseBool(getEnv("ENABLE_JUMAT_REMINDER", "false"))
+	enableCanteen, _ := strconv.ParseBool(getEnv("ENABLE_CANTEEN_REMINDER", "false"))
 
 	adminJIDsStr := getEnv("ADMIN_JIDS", "")
 	var adminJIDs []string
@@ -67,9 +69,10 @@ func LoadConfig() (*Config, error) {
 	tursoToken := getEnv("TURSO_AUTH_TOKEN", getEnv("TURSO_TOKEN", ""))
 
 	cfg := &Config{
-		TargetJID:           getEnv("TARGET_JID", ""),
-		DBPath:              dbPath,
-		EnableJumatReminder: enableJumat,
+		TargetJID:             getEnv("TARGET_JID", ""),
+		DBPath:                dbPath,
+		EnableJumatReminder:   enableJumat,
+		EnableCanteenReminder: enableCanteen,
 		Timezone:            tzStr,
 		Location:            loc,
 		CityID:              getEnv("CITY_ID", "1014"), // 1014 = Kota Bandar Lampung / Rajabasa / UNILA (Kemenag)

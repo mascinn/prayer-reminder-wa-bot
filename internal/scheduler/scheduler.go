@@ -328,6 +328,11 @@ func (s *Scheduler) RunFridayReminder() {
 
 // RunCanteenReminder executes the 15:00 WIB Monday-Friday canteen collection reminder.
 func (s *Scheduler) RunCanteenReminder() {
+	if !s.cfg.EnableCanteenReminder {
+		log.Println("[Scheduler] Canteen reminder is disabled (ENABLE_CANTEEN_REMINDER=false). Skipping.")
+		return
+	}
+
 	now := time.Now().In(s.cfg.Location)
 	weekday := now.Weekday()
 

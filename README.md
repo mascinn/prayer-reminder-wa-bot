@@ -118,6 +118,7 @@ Tambahkan variabel berikut di dashboard Render:
 * `TARGET_JID` = `120363431135211849@g.us`
 * `CITY_ID` = `1014`
 * `ENABLE_JUMAT_REMINDER` = `false`
+* `ENABLE_CANTEEN_REMINDER` = `false`
 * `TIMEZONE` = `Asia/Jakarta`
 * `LOG_LEVEL` = `INFO`
 * `TURSO_DATABASE_URL` = `libsql://prayer-reminder-wa-bot-mascinn.aws-ap-northeast-1.turso.io`
