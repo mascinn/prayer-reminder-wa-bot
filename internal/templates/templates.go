@@ -30,20 +30,11 @@ func BuildDaytimePrayerReminder(
 
 	timeStr := prayerTime.Format("15:04")
 
-	msg := fmt.Sprintf(`🕌 *PENGINGAT SHOLAT %s (%s WIB)*
-
-Petugas:
+	msg := fmt.Sprintf(`🕌 *%s — %s WIB*
 📢 Adzan : %s
 👳 Imam  : %s
 
-_Waktu masuk ±15 menit lagi. Dimohon kepada petugas untuk bersiap-siap._
-
-━━━━━━━━━━━━━━━━━
-ℹ️ *React jika petugas tidak menjalankan tugas:*
-👆 = Adzan
-👇 = Imam
-✌️ = Keduanya
-_(Batas laporan/ralat s.d 23:59 WIB)_`,
+_Mohon bersiap. React 👆/👇/✌️ jika petugas absen (s.d 23:59 WIB)._`,
 		strings.ToUpper(string(prayer)),
 		timeStr,
 		adzanTag,
@@ -74,24 +65,18 @@ func BuildSubuhKultumReminder(
 		subuhTimeStr = "~04:45"
 	}
 
-	msg := fmt.Sprintf(`🌙 *PENGINGAT SUBUH & KULTUM BESOK*
-%s
-Subuh %s WIB
+	// Format tanggal singkat: "Sabtu, 27 Sep"
+	shortDate := tomorrowDate.Format("2 Jan")
+	dayName := matrix.IndonesianDayName(tomorrowDate.Weekday())
 
-Petugas:
+	msg := fmt.Sprintf(`🌙 *Subuh Besok — %s, %s · %s WIB*
 📢 Adzan  : %s
 👳 Imam   : %s
 🎙️ Kultum : %s
 
-*Dimohon kepada petugas untuk mempersiapkan diri dan bangun lebih awal.*
-
-━━━━━━━━━━━━━━━━━
-ℹ️ *React jika petugas tidak menjalankan tugas:*
-👆 = Adzan
-👇 = Imam
-✌️ = Keduanya
-_(Batas laporan/ralat s.d 23:59 WIB besok)_`,
-		matrix.FormatIndonesianDate(tomorrowDate),
+_Mohon bangun lebih awal. React 👆/👇/✌️ jika petugas absen (s.d 23:59 WIB)._`,
+		dayName,
+		shortDate,
 		subuhTimeStr,
 		adzanTag,
 		imamTag,

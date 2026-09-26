@@ -123,16 +123,16 @@ func main() {
 					<p style="margin:0;font-size:13px;color:#94a3b8;">Bot aktif 24/7 mengirimkan pengingat Sholat & Kultum ke grup.</p>
 				</div>`
 			} else if qrCode != "" {
-				metaRefresh = `<meta http-equiv="refresh" content="6">`
+				metaRefresh = `<meta http-equiv="refresh" content="20">`
 				statusBadge = `<div class="badge badge-warning"><span class="dot dot-yellow"></span> Menunggu Scan WhatsApp</div>`
 				qrImgURL := "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=" + url.QueryEscape(qrCode)
 				qrHTML = fmt.Sprintf(`<div class="qr-container">
 					<p style="margin:0 0 14px 0;font-size:14px;color:#f8fafc;font-weight:600;">Buka WhatsApp di HP ➔ <b>Perangkat Tertaut</b> ➔ Scan QR di bawah:</p>
 					<div class="qr-wrapper"><img src="%s" alt="WhatsApp QR Code" class="qr-image" /></div>
-					<p style="margin:12px 0 0 0;font-size:12px;color:#94a3b8;">🔄 QR code ini auto-refresh setiap 6 detik.</p>
+					<p style="margin:12px 0 0 0;font-size:12px;color:#94a3b8;">🔄 Refresh dalam <span id="qr-countdown">20</span> detik...</p>
 				</div>`, qrImgURL)
 			} else {
-				metaRefresh = `<meta http-equiv="refresh" content="3">`
+				metaRefresh = `<meta http-equiv="refresh" content="5">`
 				statusBadge = `<div class="badge"><span class="dot"></span> Menginisialisasi WhatsApp...</div>`
 				qrHTML = `<p style="margin:20px 0;color:#94a3b8;">Sedang menghubungkan ke server WhatsApp...</p>`
 			}
@@ -153,6 +153,7 @@ func main() {
         .dot-green { background: #22c55e; }
         .dot-yellow { background: #eab308; }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+        #qr-countdown { font-weight: 700; color: #facc15; }
         h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px 0; color: #f8fafc; }
         .subtitle { font-size: 13px; color: #94a3b8; line-height: 1.5; margin: 0 0 20px 0; }
         .qr-container { margin: 16px 0; background: #0f172a; padding: 20px; border-radius: 14px; border: 1px solid #334155; }
@@ -178,6 +179,22 @@ func main() {
             <div class="info-row"><span class="info-label">Timezone:</span><span class="info-value">Asia/Jakarta (WIB)</span></div>
         </div>
     </div>
+<script>
+    (function() {
+        var el = document.getElementById('qr-countdown');
+        if (!el) return;
+        var secs = 20;
+        var interval = setInterval(function() {
+            secs--;
+            if (secs <= 0) {
+                clearInterval(interval);
+                location.reload();
+            } else {
+                el.textContent = secs;
+            }
+        }, 1000);
+    })();
+</script>
 </body>
 </html>`
 
